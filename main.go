@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"os"
 
+	//"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+
+	//"github.com/gorilla/mux"
+	//"github.com/joho/godotenv"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -35,18 +38,28 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+	fmt.Println("hogehoge")
 
-	helloWorld(os.Getenv("db_url"), os.Getenv("db_user"), os.Getenv("db_pass"))
+	//var user User
+	//user.Email = "www2@www.com"
+	fmt.Println(searchUserByEmail("www2@wwwa.com"))
 
-	// ルーティング
-	router := mux.NewRouter()
-
-	router.HandleFunc("/signup", signup).Methods("POST")
-	router.HandleFunc("/login", login).Methods("POST")
-	router.HandleFunc("/protected", TokenVerifyMiddleWare(ProtectedEndpoint)).Methods("GET")
-
-	log.Println("Listen on port 8000...")
-	log.Fatal(http.ListenAndServe(":8000", router))
+	//err := godotenv.Load()
+	//if err != nil {
+	//	log.Fatal("Error loading .env file")
+	//}
+	//
+	//helloWorld(os.Getenv("db_url"), os.Getenv("db_user"), os.Getenv("db_pass"))
+	//
+	//// ルーティング
+	//router := mux.NewRouter()
+	//
+	//router.HandleFunc("/signup", signup).Methods("POST")
+	//router.HandleFunc("/login", login).Methods("POST")
+	//router.HandleFunc("/protected", TokenVerifyMiddleWare(ProtectedEndpoint)).Methods("GET")
+	//
+	//log.Println("Listen on port 8000...")
+	//log.Fatal(http.ListenAndServe(":8000", router))
 }
 
 func respondWithError(w http.ResponseWriter, status int, error Error) {
@@ -157,12 +170,64 @@ func GenerateToken(user User) (string, error) {
 
 func login(w http.ResponseWriter, r *http.Request) {
 	var user User
+	//var jwt JWT
+	var error Error
+
 	json.NewDecoder(r.Body).Decode(&user)
-	token, err := GenerateToken(user)
-	if err != nil {
-		log.Fatal(err)
+
+	// 検証
+	if user.Email == "" {
+		error.Message = "メールアドレスがありません"
+		respondWithError(w, http.StatusBadRequest, error)
+		return
 	}
-	fmt.Println(token)
+	if user.Password == "" {
+		error.Message = "パスワードがありません"
+		respondWithError(w, http.StatusBadRequest, error)
+		return
+	}
+
+	//password := user.Password
+
+
+}
+
+func searchUserByEmail(email string) (neo4j.Result, error) {
+	var (
+		driver neo4j.Driver
+		session neo4j.Session
+		result neo4j.Result
+		err error
+	)
+
+	if driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), "")); err != nil {
+		return nil, err // handle error
+	}
+	defer driver.Close()
+
+	if session, err = driver.Session(neo4j.AccessModeWrite); err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.password;", map[string]interface{}{
+		"email": email,
+	})
+
+	if err != nil {
+		return nil, err // handle error
+	}
+	if !result.Next() {
+		return nil, err
+	} else {
+		for result.Next() {
+			fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%s'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
+		}
+	}
+	if err = result.Err(); err != nil {
+		return nil, err // handle error
+	}
+	return result, err
 }
 
 func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
