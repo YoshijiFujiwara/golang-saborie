@@ -36,11 +36,11 @@ func (c Controller) Signup() http.HandlerFunc {
 		}
 
 		// すでにメールアドレスが登録されていないか検証する
-		hashedPassword, err := utils.SearchUserByEmail(user.Email)
+		dbUser, err := utils.SearchUserByEmail(user.Email)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if hashedPassword != "" {
+		if dbUser.Password != "" {
 			error.Message = "そのメールアドレスはすでに使用されています"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
@@ -94,11 +94,11 @@ func (c Controller) Login() http.HandlerFunc {
 		fmt.Println(user.Email)
 
 		// データベースからemailで検索する
-		hashedPassword, err := utils.SearchUserByEmail(user.Email)
+		dbUser, err := utils.SearchUserByEmail(user.Email)
 		if err != nil {
 			log.Fatal(err)
 		}
-		bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(user.Password))
+		bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
 		if err != nil {
 			error.Message = "パスワードが正しくありません"
 			utils.RespondWithError(w, http.StatusUnauthorized, error)

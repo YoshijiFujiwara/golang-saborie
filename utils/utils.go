@@ -45,8 +45,8 @@ func CreateUser(user models.User) (string, error) {
 
 	newUser, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 		result, err = transaction.Run(
-			"CREATE (u:User) SET u.email = $email, u.password = $password RETURN u.email + ', from node ' + id(u)",
-			map[string]interface{}{"email": user.Email, "password": user.Password})
+			"CREATE (u:User) SET u.email = $email, u.username = $username, u.password = $password RETURN u.email + ', from node ' + id(u)",
+			map[string]interface{}{"email": user.Email, "username": user.Username, "password": user.Password})
 		if err != nil {
 			return nil, err
 		}
@@ -64,40 +64,43 @@ func CreateUser(user models.User) (string, error) {
 	return newUser.(string), nil
 }
 
-func SearchUserByEmail(email string) (string, error) {
+func SearchUserByEmail(email string) (*models.User, error) {
 	var (
 		driver   neo4j.Driver
 		session  neo4j.Session
 		result   neo4j.Result
 		err      error
-		password string
+		user models.User
 	)
 
 	if driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), "")); err != nil {
-		return "", err // handle error
+		return nil, err // handle error
 	}
 	defer driver.Close()
 
 	if session, err = driver.Session(neo4j.AccessModeWrite); err != nil {
-		return "", err
+		return nil, err
 	}
 	defer session.Close()
 
-	result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.password;", map[string]interface{}{
+	result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.username, u.password;", map[string]interface{}{
 		"email": email,
 	})
 
 	if err != nil {
-		return "", err // handle error
+		return nil, err // handle error
 	}
 	if result.Next() {
-		password = result.Record().GetByIndex(2).(string)
+		user.ID = int(result.Record().GetByIndex(0).(int64))
+		user.Email = result.Record().GetByIndex(1).(string)
+		user.Username = result.Record().GetByIndex(2).(string)
+		user.Password = result.Record().GetByIndex(3).(string)
 		fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%T'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
 	}
 	if err = result.Err(); err != nil {
-		return "", err // handle error
+		return nil, err // handle error
 	}
-	return password, err
+	return &user, err
 }
 
 
