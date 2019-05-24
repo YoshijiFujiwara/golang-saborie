@@ -8,7 +8,9 @@ import (
 	"os"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -25,7 +27,14 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+
+
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	helloWorld(os.Getenv("db_url"), os.Getenv("db_user"), os.Getenv("db_pass"))
 
 	// ルーティング
@@ -61,6 +70,59 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, error)
 		return
 	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	user.Password = string(hash)
+
+	// neo4jノードに登録する
+	result, err := createUser(user)
+}
+
+func createUser(user User) (string, error) {
+	var (
+		err			error
+		driver   neo4j.Driver
+		session  neo4j.Session
+		result   neo4j.Result
+		newUser interface{}
+	)
+
+	driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+	if err != nil {
+		return "", err
+	}
+	defer driver.Close()
+
+	session, err = driver.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	newUser, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+		result, err = transaction.Run(
+			"CREATE (u:User) SET u.email = $email, u.password = $password RETURN u.email + ', from node ' + id(u)",
+			map[string]interface{}{"email": user.Email, "password": user.Password})
+		if err != nil {
+			return nil, err
+		}
+
+		if result.Next() {
+			return result.Record().GetByIndex(0), nil
+		}
+
+		return nil, result.Err()
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return newUser.(string), nil
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
