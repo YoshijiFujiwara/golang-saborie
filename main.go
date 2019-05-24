@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"portfolio/saborie/models"
 	"strings"
 
 	//"github.com/davecgh/go-spew/spew"
@@ -19,30 +20,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type User struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type JWT struct {
-	Token string `json:"token"`
-}
-
-type Error struct {
-	Message string `json:"message"`
-}
-
-
-
-func main() {
+func init() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+}
 
-	//helloWorld(os.Getenv("db_url"), os.Getenv("db_user"), os.Getenv("db_pass"))
-	//result, err := searchUserByEmail("www@www.com")
+func main() {
 
 	// ルーティング
 	router := mux.NewRouter()
@@ -55,7 +40,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8000", router))
 }
 
-func respondWithError(w http.ResponseWriter, status int, error Error) {
+func respondWithError(w http.ResponseWriter, status int, error models.Error) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(error)
 }
@@ -65,8 +50,8 @@ func responseJSON(w http.ResponseWriter, data interface{}) {
 }
 
 func signup(w http.ResponseWriter, r *http.Request) {
-	var user User
-	var error Error
+	var user models.User
+	var error models.Error
 	// リクエスト内容のデコード
 	json.NewDecoder(r.Body).Decode(&user)
 
@@ -113,12 +98,12 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	responseJSON(w, user)
 }
 
-func createUser(user User) (string, error) {
+func createUser(user models.User) (string, error) {
 	var (
-		err			error
-		driver   neo4j.Driver
-		session  neo4j.Session
-		result   neo4j.Result
+		err     error
+		driver  neo4j.Driver
+		session neo4j.Session
+		result  neo4j.Result
 		newUser interface{}
 	)
 
@@ -156,13 +141,13 @@ func createUser(user User) (string, error) {
 	return newUser.(string), nil
 }
 
-func GenerateToken(user User) (string, error) {
+func GenerateToken(user models.User) (string, error) {
 	var err error
 	secret := os.Getenv("token_secret")
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
-		"iss": "course",
+		"iss":   "course",
 	})
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
@@ -173,9 +158,9 @@ func GenerateToken(user User) (string, error) {
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	var user User
-	var jwt JWT
-	var error Error
+	var user models.User
+	var jwt models.JWT
+	var error models.Error
 
 	json.NewDecoder(r.Body).Decode(&user)
 
@@ -191,7 +176,6 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println(user.Email)
-
 
 	// データベースからemailで検索する
 	hashedPassword, err := searchUserByEmail(user.Email)
@@ -219,10 +203,10 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 func searchUserByEmail(email string) (string, error) {
 	var (
-		driver neo4j.Driver
-		session neo4j.Session
-		result neo4j.Result
-		err error
+		driver   neo4j.Driver
+		session  neo4j.Session
+		result   neo4j.Result
+		err      error
 		password string
 	)
 
@@ -259,7 +243,7 @@ func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
 
 func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var errorObject Error
+		var errorObject models.Error
 		authHeader := r.Header.Get("Authorization")
 		bearerToken := strings.Split(authHeader, " ")
 
