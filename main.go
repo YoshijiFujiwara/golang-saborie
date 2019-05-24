@@ -158,7 +158,7 @@ func createUser(user User) (string, error) {
 
 func GenerateToken(user User) (string, error) {
 	var err error
-	secret := "secret"
+	secret := os.Getenv("token_secret")
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
@@ -270,7 +270,7 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 					return nil, fmt.Errorf("トークン系エラーです")
 				}
 
-				return []byte("secret"), nil
+				return []byte(os.Getenv("token_secret")), nil
 			})
 
 			if error != nil {
