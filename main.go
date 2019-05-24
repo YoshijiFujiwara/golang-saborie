@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
@@ -246,54 +247,38 @@ func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
-	fmt.Println("Toeknverify middleware invoked")
-	return nil
-}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var errorObject Error
+		authHeader := r.Header.Get("Authorization")
+		bearerToken := strings.Split(authHeader, " ")
 
-func helloWorld(uri, username, password string) (string, error) {
-	fmt.Println("hello world")
-	var (
-		err      error
-		driver   neo4j.Driver
-		session  neo4j.Session
-		result   neo4j.Result
-		greeting interface{}
-	)
+		if len(bearerToken) == 2 {
+			authToken := bearerToken[1]
+			token, error := jwt.Parse(authToken, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("トークン系エラーです")
+				}
 
-	driver, err = neo4j.NewDriver(uri, neo4j.BasicAuth(username, password, ""))
-	fmt.Println(driver)
+				return []byte("secret"), nil
+			})
 
-	if err != nil {
-		fmt.Println(driver)
-		return "", err
-	}
-	defer driver.Close()
+			if error != nil {
+				errorObject.Message = error.Error()
+				respondWithError(w, http.StatusUnauthorized, errorObject)
+				return
+			}
 
-	session, err = driver.Session(neo4j.AccessModeWrite)
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-
-	greeting, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-		result, err = transaction.Run(
-			"CREATE (a:Greeting) SET a.message = $message RETURN a.message + ', from node ' + id(a)",
-			map[string]interface{}{"message": "hello, world"})
-		fmt.Println(result)
-		if err != nil {
-			fmt.Println("error")
-			return nil, err
+			if token.Valid {
+				next.ServeHTTP(w, r)
+			} else {
+				errorObject.Message = error.Error()
+				respondWithError(w, http.StatusUnauthorized, errorObject)
+				return
+			}
+		} else {
+			errorObject.Message = "トークンの形式が不正です"
+			respondWithError(w, http.StatusUnauthorized, errorObject)
+			return
 		}
-
-		if result.Next() {
-			return result.Record().GetByIndex(0), nil
-		}
-
-		return nil, result.Err()
 	})
-	if err != nil {
-		return "", err
-	}
-
-	return greeting.(string), nil
 }
