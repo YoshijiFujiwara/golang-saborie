@@ -82,6 +82,17 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// すでにメールアドレスが登録されていないか検証する
+	hashedPassword, err := searchUserByEmail(user.Email)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if hashedPassword != "" {
+		error.Message = "そのメールアドレスはすでに使用されています"
+		respondWithError(w, http.StatusBadRequest, error)
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
 	if err != nil {
 		log.Fatal(err)
