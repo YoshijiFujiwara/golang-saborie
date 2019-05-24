@@ -9,6 +9,7 @@ import (
 
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 
 	//"github.com/gorilla/mux"
@@ -38,28 +39,19 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-	fmt.Println("hogehoge")
 
-	//var user User
-	//user.Email = "www2@www.com"
-	fmt.Println(searchUserByEmail("www2@wwwa.com"))
-
-	//err := godotenv.Load()
-	//if err != nil {
-	//	log.Fatal("Error loading .env file")
-	//}
-	//
 	//helloWorld(os.Getenv("db_url"), os.Getenv("db_user"), os.Getenv("db_pass"))
-	//
-	//// ルーティング
-	//router := mux.NewRouter()
-	//
-	//router.HandleFunc("/signup", signup).Methods("POST")
-	//router.HandleFunc("/login", login).Methods("POST")
-	//router.HandleFunc("/protected", TokenVerifyMiddleWare(ProtectedEndpoint)).Methods("GET")
-	//
-	//log.Println("Listen on port 8000...")
-	//log.Fatal(http.ListenAndServe(":8000", router))
+	//result, err := searchUserByEmail("www@www.com")
+
+	// ルーティング
+	router := mux.NewRouter()
+
+	router.HandleFunc("/signup", signup).Methods("POST")
+	router.HandleFunc("/login", login).Methods("POST")
+	router.HandleFunc("/protected", TokenVerifyMiddleWare(ProtectedEndpoint)).Methods("GET")
+
+	log.Println("Listen on port 8000...")
+	log.Fatal(http.ListenAndServe(":8000", router))
 }
 
 func respondWithError(w http.ResponseWriter, status int, error Error) {
@@ -170,7 +162,7 @@ func GenerateToken(user User) (string, error) {
 
 func login(w http.ResponseWriter, r *http.Request) {
 	var user User
-	//var jwt JWT
+	var jwt JWT
 	var error Error
 
 	json.NewDecoder(r.Body).Decode(&user)
@@ -186,27 +178,49 @@ func login(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusBadRequest, error)
 		return
 	}
+	fmt.Println(user.Email)
 
-	//password := user.Password
 
+	// データベースからemailで検索する
+	hashedPassword, err := searchUserByEmail(user.Email)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(user.Password))
+	if err != nil {
+		error.Message = "パスワードが正しくありません"
+		respondWithError(w, http.StatusUnauthorized, error)
+		return
+	}
+
+	// トークン取得
+	token, err := GenerateToken(user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w.WriteHeader(http.StatusOK)
+	jwt.Token = token
+
+	responseJSON(w, jwt)
 
 }
 
-func searchUserByEmail(email string) (neo4j.Result, error) {
+func searchUserByEmail(email string) (string, error) {
 	var (
 		driver neo4j.Driver
 		session neo4j.Session
 		result neo4j.Result
 		err error
+		password string
 	)
 
 	if driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), "")); err != nil {
-		return nil, err // handle error
+		return "", err // handle error
 	}
 	defer driver.Close()
 
 	if session, err = driver.Session(neo4j.AccessModeWrite); err != nil {
-		return nil, err
+		return "", err
 	}
 	defer session.Close()
 
@@ -215,19 +229,16 @@ func searchUserByEmail(email string) (neo4j.Result, error) {
 	})
 
 	if err != nil {
-		return nil, err // handle error
+		return "", err // handle error
 	}
-	if !result.Next() {
-		return nil, err
-	} else {
-		for result.Next() {
-			fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%s'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
-		}
+	if result.Next() {
+		password = result.Record().GetByIndex(2).(string)
+		fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%T'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
 	}
 	if err = result.Err(); err != nil {
-		return nil, err // handle error
+		return "", err // handle error
 	}
-	return result, err
+	return password, err
 }
 
 func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
