@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
+	"portfolio/saborie/utils"
 	"strings"
 
 	//"github.com/davecgh/go-spew/spew"
@@ -40,15 +41,6 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8000", router))
 }
 
-func respondWithError(w http.ResponseWriter, status int, error models.Error) {
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(error)
-}
-
-func responseJSON(w http.ResponseWriter, data interface{}) {
-	json.NewEncoder(w).Encode(data)
-}
-
 func signup(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	var error models.Error
@@ -58,12 +50,12 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	// 検証
 	if user.Email == "" {
 		error.Message = "メールアドレスがありません"
-		respondWithError(w, http.StatusBadRequest, error)
+		utils.RespondWithError(w, http.StatusBadRequest, error)
 		return
 	}
 	if user.Password == "" {
 		error.Message = "パスワードがありません"
-		respondWithError(w, http.StatusBadRequest, error)
+		utils.RespondWithError(w, http.StatusBadRequest, error)
 		return
 	}
 
@@ -74,7 +66,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	}
 	if hashedPassword != "" {
 		error.Message = "そのメールアドレスはすでに使用されています"
-		respondWithError(w, http.StatusBadRequest, error)
+		utils.RespondWithError(w, http.StatusBadRequest, error)
 		return
 	}
 
@@ -89,13 +81,13 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	result, err := createUser(user)
 	if result == "" || err != nil {
 		error.Message = "サーバーエラーです"
-		respondWithError(w, http.StatusInternalServerError, error)
+		utils.RespondWithError(w, http.StatusInternalServerError, error)
 		return
 	}
 
 	user.Password = ""
 	w.Header().Set("Content-Type", "appliaction/json")
-	responseJSON(w, user)
+	utils.ResponseJSON(w, user)
 }
 
 func createUser(user models.User) (string, error) {
@@ -167,12 +159,12 @@ func login(w http.ResponseWriter, r *http.Request) {
 	// 検証
 	if user.Email == "" {
 		error.Message = "メールアドレスがありません"
-		respondWithError(w, http.StatusBadRequest, error)
+		utils.RespondWithError(w, http.StatusBadRequest, error)
 		return
 	}
 	if user.Password == "" {
 		error.Message = "パスワードがありません"
-		respondWithError(w, http.StatusBadRequest, error)
+		utils.RespondWithError(w, http.StatusBadRequest, error)
 		return
 	}
 	fmt.Println(user.Email)
@@ -185,7 +177,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(user.Password))
 	if err != nil {
 		error.Message = "パスワードが正しくありません"
-		respondWithError(w, http.StatusUnauthorized, error)
+		utils.RespondWithError(w, http.StatusUnauthorized, error)
 		return
 	}
 
@@ -197,7 +189,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	jwt.Token = token
 
-	responseJSON(w, jwt)
+	utils.ResponseJSON(w, jwt)
 
 }
 
@@ -259,7 +251,7 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 
 			if error != nil {
 				errorObject.Message = error.Error()
-				respondWithError(w, http.StatusUnauthorized, errorObject)
+				utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
 				return
 			}
 
@@ -267,12 +259,12 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 				next.ServeHTTP(w, r)
 			} else {
 				errorObject.Message = error.Error()
-				respondWithError(w, http.StatusUnauthorized, errorObject)
+				utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
 				return
 			}
 		} else {
 			errorObject.Message = "トークンの形式が不正です"
-			respondWithError(w, http.StatusUnauthorized, errorObject)
+			utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
 			return
 		}
 	})
