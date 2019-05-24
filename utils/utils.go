@@ -110,7 +110,7 @@ func GenerateToken(user models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
-		"iss":   "course",
+		"iss": os.Getenv("token_iss"),
 	})
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
