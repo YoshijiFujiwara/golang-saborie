@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
@@ -53,6 +54,10 @@ func respondWithError(w http.ResponseWriter, status int, error Error) {
 	json.NewEncoder(w).Encode(error)
 }
 
+func responseJSON(w http.ResponseWriter, data interface{}) {
+	json.NewEncoder(w).Encode(data)
+}
+
 func signup(w http.ResponseWriter, r *http.Request) {
 	var user User
 	var error Error
@@ -80,6 +85,15 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	// neo4jノードに登録する
 	result, err := createUser(user)
+	if result == "" || err != nil {
+		error.Message = "サーバーエラーです"
+		respondWithError(w, http.StatusInternalServerError, error)
+		return
+	}
+
+	user.Password = ""
+	w.Header().Set("Content-Type", "appliaction/json")
+	responseJSON(w, user)
 }
 
 func createUser(user User) (string, error) {
@@ -125,9 +139,30 @@ func createUser(user User) (string, error) {
 	return newUser.(string), nil
 }
 
+func GenerateToken(user User) (string, error) {
+	var err error
+	secret := "secret"
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": user.Email,
+		"iss": "course",
+	})
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return tokenString, nil
+}
+
 func login(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("login invoked")
-	w.Write([]byte("successfully called login"))
+	var user User
+	json.NewDecoder(r.Body).Decode(&user)
+	token, err := GenerateToken(user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(token)
 }
 
 func ProtectedEndpoint(w http.ResponseWriter, r *http.Request) {
