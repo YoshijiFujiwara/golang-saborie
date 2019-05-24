@@ -81,6 +81,11 @@ func (c Controller) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
+		if user.Username == "" {
+			error.Message = "ユーザーネームがありません"
+			utils.RespondWithError(w, http.StatusBadRequest, error)
+			return
+		}
 		if user.Password == "" {
 			error.Message = "パスワードがありません"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
