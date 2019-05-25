@@ -46,9 +46,11 @@ func main() {
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Destroy())).Methods("DELETE") // 認証必要
 
 	// metoo
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/metoos", metooController.Index()).Methods("GET")
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}/switch_metoo", userController.TokenVerifyMiddleware(metooController.SwitchMetoo())).Methods("PUT") // 認証必要
 
 	// love
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/loves", loveController.Index()).Methods("GET")
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}/switch_love", userController.TokenVerifyMiddleware(loveController.SwitchLove())).Methods("PUT") // 認証必要
 
 	log.Println("Listen on port 8000...")
