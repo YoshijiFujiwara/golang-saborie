@@ -176,9 +176,71 @@ func (c CommentController) Store() http.HandlerFunc {
 
 func (c CommentController) Show() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var validationError models.Error
+
 		// クエリパラメータから、sabotaIDを取得する
-		//params := mux.Vars(r)
-		//sabotaId, _ := strconv.Atoi(params["sabotaId"])
+		params := mux.Vars(r)
+		sabotaId, _ := strconv.Atoi(params["sabotaId"])
+		commentId, _ := strconv.Atoi(params["commentId"])
+
+		// 時系列順でコメントを取得する
+		var (
+			err     error
+			driver  neo4j.Driver
+			session neo4j.Session
+			result  neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			return
+		}
+		defer session.Close()
+
+		comment, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var comment models.Comment
+
+			result, err = transaction.Run(
+				"MATCH (s:Sabota)<-[:COMMENT]-(com:Comment) " +
+					"WHERE ID(s) = $sabotaId AND ID(com) = $commentId " +
+					"RETURN ID(com), " +
+					"com.body, " +
+					"com.created_at, " +
+					"com.updated_at " +
+					"ORDER BY ID(s) DESC;",
+				map[string]interface{}{
+					"sabotaId": sabotaId,
+					"commentId": commentId,
+				})
+
+			if err != nil {
+				return nil, err
+			}
+
+
+			if result.Next() {
+				comment.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
+				comment.Body = result.Record().GetByIndex(1).(string)
+				comment.CreatedAt = result.Record().GetByIndex(2).(string)
+				comment.UpdatedAt = result.Record().GetByIndex(3).(string)
+			}
+
+			return comment, result.Err()
+		})
+
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		// sabotaリストをjsonで返す
+		utils.ResponseJSON(w, comment)
 
 
 	}
