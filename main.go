@@ -20,6 +20,8 @@ func main() {
 	userController := controllers.UserController{}
 	sabotaController := controllers.SabotaController{}
 	commentController := controllers.CommentController{}
+	metooController := controllers.MetooController{}
+	loveController := controllers.LoveController{}
 
 	// ルーティング
 	router := mux.NewRouter()
@@ -42,6 +44,12 @@ func main() {
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", commentController.Show()).Methods("GET")
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Update())).Methods("PUT") // 認証必要
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Destroy())).Methods("DELETE") // 認証必要
+
+	// metoo
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/switch_metoo", userController.TokenVerifyMiddleware(metooController.SwitchMetoo())).Methods("PUT") // 認証必要
+
+	// love
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/switch_love", userController.TokenVerifyMiddleware(loveController.SwitchLove())).Methods("PUT") // 認証必要
 
 	log.Println("Listen on port 8000...")
 	log.Fatal(http.ListenAndServe(":8000", router))
