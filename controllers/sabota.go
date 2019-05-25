@@ -17,7 +17,6 @@ import (
 
 type SabotaController struct {}
 
-
 func (c SabotaController) Index() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 時系列順でsabotaを取得する
