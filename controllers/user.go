@@ -98,10 +98,16 @@ func (c UserController) Login() http.HandlerFunc {
 		dbUser, err := utils.SearchUserByEmail(user.Email)
 		if err != nil {
 			log.Fatal(err)
+			return
 		}
 		bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
 		if err != nil {
 			error.Message = "パスワードが正しくありません"
+			utils.RespondWithError(w, http.StatusUnauthorized, error)
+			return
+		}
+		if dbUser != nil {
+			error.Message = "そのメールアドレスは登録されていません"
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
