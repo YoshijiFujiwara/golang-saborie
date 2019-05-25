@@ -10,13 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
 type SabotaController struct {}
-
 
 func (c SabotaController) Index() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +42,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 			var sabotaList []models.Sabota
 
 			result, err = transaction.Run(
-				"MATCH (n:Sabota) RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body ORDER BY ID(n) DESC;",
+				"MATCH (n:Sabota) RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body, n.created_at, n.updated_at ORDER BY ID(n) DESC;",
 				map[string]interface{}{})
 
 			if err != nil {
@@ -60,6 +58,8 @@ func (c SabotaController) Index() http.HandlerFunc {
 				sabota.Mistake = result.Record().GetByIndex(2).(string)
 				sabota.Time = result.Record().GetByIndex(3).(string)
 				sabota.Body = result.Record().GetByIndex(4).(string)
+				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
+				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
 
 				sabotaList = append(sabotaList, sabota)
 			}
@@ -77,7 +77,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 
 func (c SabotaController) Show() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
+		var validationError models.Error
 		// クエリパラメータから、sabotaIDを取得する
 		params := mux.Vars(r)
 		sabotaId, _ := strconv.Atoi(params["sabotaId"])
@@ -92,12 +92,16 @@ func (c SabotaController) Show() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -170,19 +174,23 @@ func (c SabotaController) Store() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
 
 		// sabota新規作成
 		newSabotaId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var newSabotaId int64
+			var newSabotaId int
 
 			result, err = transaction.Run(
 				"CREATE (s:Sabota) SET " +
@@ -207,24 +215,22 @@ func (c SabotaController) Store() http.HandlerFunc {
 			}
 
 			if result.Next() {
-				newSabotaId = result.Record().GetByIndex(0).(int64)
+				newSabotaId = int(result.Record().GetByIndex(0).(int64))
 			}
 
 			result, err = transaction.Run(
 				"MATCH (u:User), (sa:Sabota) " +
-						"WHERE ID(u) = $userId AND ID(sa) = $sabotaId " +
-						"CREATE (u)-[e:POST]->(sa) RETURN e;",
+					"WHERE ID(u) = $userId AND ID(sa) = $sabotaId " +
+					"CREATE (u)-[e:POST]->(sa) RETURN e;",
 				map[string]interface{}{"userId": userId, "sabotaId": newSabotaId})
 
 			return newSabotaId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
 			return
 		}
-		fmt.Println("新規作成")
-		spew.Dump(newSabotaId)
-
-		fmt.Println(jsonSabota.ShouldDone)
 
 		// Mistake、ShouldDoneノードとの間に、エッジをはる
 		// 該当する名前のShouldDoneノードの存在確認
@@ -323,8 +329,11 @@ func (c SabotaController) Store() http.HandlerFunc {
 				})
 			return nil, nil
 		})
-		fmt.Println(err)
-		return
+
+		jsonSabota.ID = newSabotaId.(int)
+		jsonSabota.CreatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		jsonSabota.UpdatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		utils.ResponseJSON(w, jsonSabota)
 	}
 }
 
@@ -366,12 +375,16 @@ func (c SabotaController) Update() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -399,9 +412,10 @@ func (c SabotaController) Update() http.HandlerFunc {
 			return postUserId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		fmt.Println(postUserId)
 
 		if postUserId != userId {
 			validationError.Message = "不正なリクエストです"
@@ -429,6 +443,8 @@ func (c SabotaController) Update() http.HandlerFunc {
 			return nil, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 
@@ -443,7 +459,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 						"s.mistake = $mistake, "+
 						"s.time = $time, "+
 						"s.body = $body, "+
-						"s.created_at = $created_at, " +
 						"s.updated_at = $updated_at " +
 						"RETURN ID(s);",
 				map[string]interface{}{
@@ -452,7 +467,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 					"mistake": jsonSabota.Mistake,
 					"time": jsonSabota.Time,
 					"body": jsonSabota.Body,
-					"created_at": time.Now().Format("2006-01-02 15:04:05"),
 					"updated_at": time.Now().Format("2006-01-02 15:04:05"),
 				})
 
@@ -467,11 +481,10 @@ func (c SabotaController) Update() http.HandlerFunc {
 			return newSabotaId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		fmt.Println("新規作成")
-
-		fmt.Println(jsonSabota.ShouldDone)
 
 		// Mistake、ShouldDoneノードとの間に、エッジをはる
 		// 該当する名前のShouldDoneノードの存在確認
@@ -570,8 +583,14 @@ func (c SabotaController) Update() http.HandlerFunc {
 				})
 			return nil, nil
 		})
-		fmt.Println(err)
-		return
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		jsonSabota.ID = sabotaId
+		jsonSabota.UpdatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		utils.ResponseJSON(w, jsonSabota)
 	}
 }
 
@@ -594,12 +613,16 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -627,6 +650,8 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 			return postUserId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		fmt.Println(postUserId)
