@@ -15,9 +15,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-type Controller struct {}
+type UserController struct {}
 
-func (c Controller) Signup() http.HandlerFunc {
+func (c UserController) Signup() http.HandlerFunc {
 	return func (w http.ResponseWriter, r *http.Request) {
 		var user models.User
 		var error models.Error
@@ -68,7 +68,7 @@ func (c Controller) Signup() http.HandlerFunc {
 	}
 }
 
-func (c Controller) Login() http.HandlerFunc {
+func (c UserController) Login() http.HandlerFunc {
 	return func (w http.ResponseWriter, r *http.Request) {
 		var user models.User
 		var jwt models.JWT
@@ -118,7 +118,7 @@ func (c Controller) Login() http.HandlerFunc {
 	}
 }
 
-func (c Controller) TokenVerifyMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func (c UserController) TokenVerifyMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var errorObject models.Error
 		authHeader := r.Header.Get("Authorization")

@@ -6,26 +6,83 @@ import (
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
+	"portfolio/saborie/utils"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-// todo どこをtokenミドルウェア通すかを決めておく
+type SabotaController struct {}
 
-func (c Controller) Index() http.HandlerFunc {
+
+func (c SabotaController) Index() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// ログインユーザーID
+		//userId := r.Context().Value("userId")
+
+		// 時系列順でsabotaを取得する
+		var (
+			err     error
+			driver  neo4j.Driver
+			session neo4j.Session
+			result  neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			return
+		}
+		defer session.Close()
+
+		// sabota新規作成
+		sabotaList, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var sabotaList []models.Sabota
+
+			result, err = transaction.Run(
+				"MATCH (n:Sabota) RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body ORDER BY ID(n) DESC;",
+				map[string]interface{}{})
+
+			if err != nil {
+				return nil, err
+			}
+
+			fmt.Println("hogehoge")
+
+			for result.Next() {
+				var sabota models.Sabota
+				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
+				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
+				sabota.Mistake = result.Record().GetByIndex(2).(string)
+				sabota.Time = result.Record().GetByIndex(3).(string)
+				sabota.Body = result.Record().GetByIndex(4).(string)
+
+				sabotaList = append(sabotaList, sabota)
+			}
+
+			return sabotaList, result.Err()
+		})
+
+		if err != nil {
+			return
+		}
+		// sabotaリストをjsonで返す
+		utils.ResponseJSON(w, sabotaList)
+	}
+}
+
+func (c SabotaController) Show() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 	}
 }
 
-func (c Controller) Show() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-	}
-}
-
-func (c Controller) StoreSabota() http.HandlerFunc {
+func (c SabotaController) Store() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// ログインユーザーID
 		userId := r.Context().Value("userId")
@@ -60,10 +117,12 @@ func (c Controller) StoreSabota() http.HandlerFunc {
 
 			result, err = transaction.Run(
 				"CREATE (s:Sabota) SET " +
+					"s.shouldDone = $shouldDone, "+
+					"s.mistake = $mistake, "+
 					"s.time = $time, "+
 					"s.body = $body "+
 					"RETURN ID(s);",
-				map[string]interface{}{"time": jsonSabota.Time, "body": jsonSabota.Body})
+				map[string]interface{}{"shouldDone": jsonSabota.ShouldDone, "mistake": jsonSabota.Mistake, "time": jsonSabota.Time, "body": jsonSabota.Body})
 
 			if err != nil {
 				return nil, err
@@ -136,13 +195,13 @@ func (c Controller) StoreSabota() http.HandlerFunc {
 	}
 }
 
-func (c Controller) Update() http.HandlerFunc {
+func (c SabotaController) Update() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 	}
 }
 
-func (c Controller) Destroy() http.HandlerFunc {
+func (c SabotaController) Destroy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 	}
