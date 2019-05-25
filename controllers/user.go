@@ -106,7 +106,7 @@ func (c UserController) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
-		if dbUser != nil {
+		if dbUser == nil {
 			error.Message = "そのメールアドレスは登録されていません"
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
