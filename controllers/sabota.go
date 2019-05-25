@@ -76,7 +76,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 
 func (c SabotaController) Show() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
+		var validationError models.Error
 		// クエリパラメータから、sabotaIDを取得する
 		params := mux.Vars(r)
 		sabotaId, _ := strconv.Atoi(params["sabotaId"])
@@ -91,12 +91,16 @@ func (c SabotaController) Show() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -169,12 +173,16 @@ func (c SabotaController) Store() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -365,12 +373,16 @@ func (c SabotaController) Update() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -398,9 +410,10 @@ func (c SabotaController) Update() http.HandlerFunc {
 			return postUserId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		fmt.Println(postUserId)
 
 		if postUserId != userId {
 			validationError.Message = "不正なリクエストです"
@@ -428,6 +441,8 @@ func (c SabotaController) Update() http.HandlerFunc {
 			return nil, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 
@@ -466,11 +481,10 @@ func (c SabotaController) Update() http.HandlerFunc {
 			return newSabotaId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		fmt.Println("新規作成")
-
-		fmt.Println(jsonSabota.ShouldDone)
 
 		// Mistake、ShouldDoneノードとの間に、エッジをはる
 		// 該当する名前のShouldDoneノードの存在確認
@@ -569,7 +583,11 @@ func (c SabotaController) Update() http.HandlerFunc {
 				})
 			return nil, nil
 		})
-		fmt.Println(err)
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
 		return
 	}
 }
@@ -593,12 +611,16 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer driver.Close()
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -626,6 +648,8 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 			return postUserId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		fmt.Println(postUserId)
