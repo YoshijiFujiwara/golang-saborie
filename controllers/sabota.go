@@ -84,13 +84,28 @@ func (c SabotaController) Show() http.HandlerFunc {
 
 func (c SabotaController) Store() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// ログインユーザーID
-		userId := r.Context().Value("userId")
+		var validationError models.Error
 		var jsonSabota models.Sabota // post内容のsabota
+		userId := r.Context().Value("userId") // ログインユーザーID
 
 		// リクエスト内容をデコードして作成するsabotaデータを取り出す
 		json.NewDecoder(r.Body).Decode(&jsonSabota)
-		spew.Dump(jsonSabota)
+		// 検証
+		if jsonSabota.ShouldDone == "" {
+			validationError.Message = "やるべきだったことが抜けています"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+		if jsonSabota.Mistake == "" {
+			validationError.Message = "やっちゃったことが抜けています"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+		if jsonSabota.Time == "" {
+			validationError.Message = "時間がありません"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
 
 		var (
 			err     error
