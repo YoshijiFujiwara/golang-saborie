@@ -360,10 +360,89 @@ func (c CommentController) Update() http.HandlerFunc {
 func (c CommentController) Destroy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// クエリパラメータから、sabotaIDを取得する
-		//params := mux.Vars(r)
-		//sabotaId, _ := strconv.Atoi(params["sabotaId"])
-		//userId := r.Context().Value("userId") // ログインユーザーID
+		var validationError models.Error
+		userId := r.Context().Value("userId") // ログインユーザーID
+
+		// クエリパラメータから、sabotaIDを取得する
+		params := mux.Vars(r)
+		commentId, _ := strconv.Atoi(params["commentId"])
+
+		var (
+			err     error
+			driver  neo4j.Driver
+			session neo4j.Session
+			result  neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer session.Close()
 
 
+		// そのcommentの投稿者とtoken経由のuserIdが一致するか確認
+		postUserId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var postUserId int
+
+			result, err = transaction.Run(
+				"MATCH (u:User)-[:POST]->(c:Comment) WHERE ID(c) = $commentId RETURN ID(u);",
+				map[string]interface{}{
+					"commentId": commentId,
+				})
+
+			if err != nil {
+				return nil, err
+			}
+			if result.Next() {
+				postUserId = int(result.Record().GetByIndex(0).(int64))
+			}
+			fmt.Println(postUserId)
+
+
+			return postUserId, result.Err()
+		})
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		if postUserId != userId {
+			validationError.Message = "不正なリクエストです"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+
+		// 対象のcommentを消す
+		_, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			result, err = transaction.Run(
+				"MATCH (c:Comment) WHERE ID(c) = $commentId DETACH DELETE c",
+				map[string]interface{}{
+					"commentId": commentId,
+				})
+
+			if err != nil {
+				return nil, err
+			}
+
+			return nil, result.Err()
+		})
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+
+		return
 	}
 }
