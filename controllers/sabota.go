@@ -24,6 +24,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 			driver  neo4j.Driver
 			session neo4j.Session
 			result  neo4j.Result
+			countResult  neo4j.Result
 		)
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
@@ -42,17 +43,29 @@ func (c SabotaController) Index() http.HandlerFunc {
 			var sabotaList []models.Sabota
 
 			result, err = transaction.Run(
-				"MATCH (n:Sabota) RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body, n.created_at, n.updated_at ORDER BY ID(n) DESC;",
+				"MATCH (n:Sabota)<-[e:POST]-(u:User)" +
+						" RETURN ID(n), " +
+						"n.shouldDone, " +
+						"n.mistake, " +
+						"n.time, " +
+						"n.body, " +
+						"n.created_at, " +
+						"n.updated_at, " +
+						"ID(u), " +
+						"u.username " +
+						"ORDER BY ID(n) DESC;",
 				map[string]interface{}{})
 
 			if err != nil {
 				return nil, err
 			}
 
-			fmt.Println("hogehoge")
-
 			for result.Next() {
 				var sabota models.Sabota
+				var user models.User
+				var numberOfMetoo int
+				var numberOfLove int
+
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
 				sabota.Mistake = result.Record().GetByIndex(2).(string)
@@ -60,6 +73,39 @@ func (c SabotaController) Index() http.HandlerFunc {
 				sabota.Body = result.Record().GetByIndex(4).(string)
 				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
 				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
+				user.ID = int(result.Record().GetByIndex(7).(int64))
+				user.Username = result.Record().GetByIndex(8).(string)
+
+				sabota.PostUser = user
+
+				// metooの数をcount
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[e:METOO]-(u:User) " +
+							"WHERE ID(n) = $sabotaId " +
+							"RETURN count(e) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				if countResult.Next() {
+					numberOfMetoo = int(countResult.Record().GetByIndex(0).(int64))
+				}
+
+				// loveの数
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[e:LOVE]-(u:User) " +
+							"WHERE ID(n) = $sabotaId " +
+							"RETURN count(e) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				if countResult.Next() {
+					numberOfLove = int(countResult.Record().GetByIndex(0).(int64))
+				}
+
+				sabota.NumberOfLove = numberOfLove
+				sabota.NumberOfMetoo = numberOfMetoo
 
 				sabotaList = append(sabotaList, sabota)
 			}
@@ -88,6 +134,8 @@ func (c SabotaController) Show() http.HandlerFunc {
 			driver  neo4j.Driver
 			session neo4j.Session
 			result  neo4j.Result
+			countResult  neo4j.Result
+
 		)
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
@@ -110,21 +158,68 @@ func (c SabotaController) Show() http.HandlerFunc {
 			var sabota models.Sabota
 
 			result, err = transaction.Run(
-				"MATCH (n:Sabota) WHERE ID(n) = $sabotaId RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body;",
+				"MATCH (n:Sabota)<-[e:POST]-(u:User) WHERE ID(n) = $sabotaId RETURN " +
+					"ID(n), " +
+					"n.shouldDone, " +
+					"n.mistake, " +
+					"n.time, " +
+					"n.body, " +
+					"n.created_at, " +
+					"n.updated_at, " +
+					"ID(u), " +
+					"u.username ",
 				map[string]interface{}{"sabotaId": sabotaId})
 
 			if err != nil {
 				return nil, err
 			}
 
-			fmt.Println("hogehoge")
-
 			if result.Next() {
+				var user models.User
+				var numberOfMetoo int
+				var numberOfLove int
+
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
 				sabota.Mistake = result.Record().GetByIndex(2).(string)
 				sabota.Time = result.Record().GetByIndex(3).(string)
 				sabota.Body = result.Record().GetByIndex(4).(string)
+				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
+				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
+
+				user.ID = int(result.Record().GetByIndex(7).(int64))
+				user.Username = result.Record().GetByIndex(8).(string)
+
+				sabota.PostUser = user
+
+				// metooの数をcount
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[e:METOO]-(u:User) " +
+						"WHERE ID(n) = $sabotaId " +
+						"RETURN count(e) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				if countResult.Next() {
+					numberOfMetoo = int(countResult.Record().GetByIndex(0).(int64))
+				}
+
+				// loveの数
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[e:LOVE]-(u:User) " +
+						"WHERE ID(n) = $sabotaId " +
+						"RETURN count(e) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				if countResult.Next() {
+					numberOfLove = int(countResult.Record().GetByIndex(0).(int64))
+				}
+
+				sabota.NumberOfLove = numberOfLove
+				sabota.NumberOfMetoo = numberOfMetoo
 
 				return sabota, result.Err()
 			} else {
@@ -133,6 +228,8 @@ func (c SabotaController) Show() http.HandlerFunc {
 		})
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		// sabotaリストをjsonで返す

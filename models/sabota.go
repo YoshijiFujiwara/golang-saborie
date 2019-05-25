@@ -8,4 +8,8 @@ type Sabota struct {
 	Body       string `json:"body"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
+
+	PostUser User `json:"postUser"`
+	NumberOfMetoo int `json:"numberOfMetoo"`
+	NumberOfLove int `json:"numberOfLove"`
 }
