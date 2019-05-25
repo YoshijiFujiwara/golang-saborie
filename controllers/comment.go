@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
@@ -117,8 +118,8 @@ func (c CommentController) Store() http.HandlerFunc {
 		defer session.Close()
 
 		// コメント新規作成
-		_, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var newCommentId int64
+		newCommentId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var newCommentId int
 
 			result, err = transaction.Run(
 				"CREATE (c:Comment) SET " +
@@ -137,7 +138,7 @@ func (c CommentController) Store() http.HandlerFunc {
 			}
 
 			if result.Next() {
-				newCommentId = result.Record().GetByIndex(0).(int64)
+				newCommentId = int(result.Record().GetByIndex(0).(int64))
 			}
 
 
@@ -170,7 +171,8 @@ func (c CommentController) Store() http.HandlerFunc {
 			return
 		}
 
-		return
+		jsonComment.ID = newCommentId.(int)
+		utils.ResponseJSON(w, jsonComment)
 	}
 }
 
@@ -223,7 +225,6 @@ func (c CommentController) Show() http.HandlerFunc {
 				return nil, err
 			}
 
-
 			if result.Next() {
 				comment.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				comment.Body = result.Record().GetByIndex(1).(string)
@@ -241,19 +242,118 @@ func (c CommentController) Show() http.HandlerFunc {
 		}
 		// sabotaリストをjsonで返す
 		utils.ResponseJSON(w, comment)
-
-
 	}
 }
 
 func (c CommentController) Update() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("update invoked")
+		var validationError models.Error
+		var jsonComment models.Sabota // post内容のcomment
+		userId := r.Context().Value("userId") // ログインユーザーID
+
 		// クエリパラメータから、sabotaIDを取得する
-		//params := mux.Vars(r)
-		//sabotaId, _ := strconv.Atoi(params["sabotaId"])
-		//userId := r.Context().Value("userId") // ログインユーザーID
+		params := mux.Vars(r)
+		commentId, _ := strconv.Atoi(params["commentId"])
+
+		// リクエスト内容をデコードして作成するsabotaデータを取り出す
+		json.NewDecoder(r.Body).Decode(&jsonComment)
+		// 検証
+		if jsonComment.Body == "" {
+			validationError.Message = "コメントが空です"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+
+		var (
+			err     error
+			driver  neo4j.Driver
+			session neo4j.Session
+			result  neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer session.Close()
 
 
+		// そのcommentの投稿者とtoken経由のuserIdが一致するか確認
+		postUserId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var postUserId int
+
+			result, err = transaction.Run(
+				"MATCH (u:User)-[:POST]->(c:Comment) WHERE ID(c) = $commentId RETURN ID(u);",
+				map[string]interface{}{
+					"commentId": commentId,
+				})
+
+			if err != nil {
+				return nil, err
+			}
+			if result.Next() {
+				postUserId = int(result.Record().GetByIndex(0).(int64))
+			}
+			fmt.Println(postUserId)
+
+
+			return postUserId, result.Err()
+		})
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		if postUserId != userId {
+			validationError.Message = "不正なリクエストです"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+
+		// 該当するcommentをupdateする
+		_, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var updatedCommentId int64
+
+			result, err = transaction.Run(
+				"MATCH (c:Comment)" +
+					"WHERE ID(c) = $commentId SET " +
+					"c.body = $body, "+
+					"c.updated_at = $updated_at " +
+					"RETURN ID(c);",
+				map[string]interface{}{
+					"commentId": commentId,
+					"body": jsonComment.Body,
+					"updated_at": time.Now().Format("2006-01-02 15:04:05"),
+				})
+
+			if err != nil {
+				return nil, err
+			}
+			if result.Next() {
+				updatedCommentId = result.Record().GetByIndex(0).(int64)
+			}
+
+			return updatedCommentId, result.Err()
+		})
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		jsonComment.ID = commentId
+		jsonComment.UpdatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		utils.ResponseJSON(w, jsonComment)
 	}
 }
 

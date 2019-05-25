@@ -39,8 +39,8 @@ func main() {
 	router.HandleFunc("/sabota/{sabotaId}/comments", commentController.Index()).Methods("GET")
 	router.HandleFunc("/sabota/{sabotaId}/comments", userController.TokenVerifyMiddleware(commentController.Store())).Methods("POST") // 認証必要
 	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", commentController.Show()).Methods("GET")
-	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Update())).Methods("GET") // 認証必要
-	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Destroy())).Methods("GET") // 認証必要
+	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Update())).Methods("PUT") // 認証必要
+	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Destroy())).Methods("DELETE") // 認証必要
 
 	log.Println("Listen on port 8000...")
 	log.Fatal(http.ListenAndServe(":8000", router))
