@@ -579,13 +579,11 @@ func (c SabotaController) Update() http.HandlerFunc {
 func (c SabotaController) Destroy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var validationError models.Error
-		var jsonSabota models.Sabota // post内容のsabota
 		userId := r.Context().Value("userId") // ログインユーザーID
 
 		// クエリパラメータから、sabotaIDを取得する
 		params := mux.Vars(r)
 		sabotaId, _ := strconv.Atoi(params["sabotaId"])
-
 
 		var (
 			err     error
@@ -639,10 +637,10 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 			return
 		}
 
-		// アルゴリズム的に、先にエッジを消しておいた方が楽なのでそうするか
+		// 対象のsabotaを消す
 		_, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 			result, err = transaction.Run(
-				"MATCH (s:Sabota)-[e:DONE]->() WHERE ID(s) = $sabotaId DELETE e",
+				"MATCH (s:Sabota) WHERE ID(s) = $sabotaId DETACH DELETE s",
 				map[string]interface{}{
 					"sabotaId": sabotaId,
 				})
@@ -659,147 +657,10 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 			return nil, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
 			return
 		}
-
-		// 該当するsabotaをupdateする
-		updatedSabotaId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var newSabotaId int64
-
-			result, err = transaction.Run(
-				"MATCH (s:Sabota)" +
-					"WHERE ID(s) = $sabotaId SET " +
-					"s.shouldDone = $shouldDone, "+
-					"s.mistake = $mistake, "+
-					"s.time = $time, "+
-					"s.body = $body, "+
-					"s.created_at = $created_at, " +
-					"s.updated_at = $updated_at " +
-					"RETURN ID(s);",
-				map[string]interface{}{
-					"sabotaId": sabotaId,
-					"shouldDone": jsonSabota.ShouldDone,
-					"mistake": jsonSabota.Mistake,
-					"time": jsonSabota.Time,
-					"body": jsonSabota.Body,
-					"created_at": time.Now().Format("2006-01-02 15:04:05"),
-					"updated_at": time.Now().Format("2006-01-02 15:04:05"),
-				})
-
-			if err != nil {
-				return nil, err
-			}
-
-			if result.Next() {
-				newSabotaId = result.Record().GetByIndex(0).(int64)
-			}
-
-			return newSabotaId, result.Err()
-		})
-		if err != nil {
-			return
-		}
-		fmt.Println("新規作成")
-
-		fmt.Println(jsonSabota.ShouldDone)
-
-		// Mistake、ShouldDoneノードとの間に、エッジをはる
-		// 該当する名前のShouldDoneノードの存在確認
-		_, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var count int64
-			result, err = transaction.Run(
-				"MATCH (n:ShouldDone) WHERE n.name = $name RETURN count(n)",
-				map[string]interface{}{"name": jsonSabota.ShouldDone })
-
-			if err != nil {
-				return nil, err
-			}
-
-			if result.Next() {
-				count = result.Record().GetByIndex(0).(int64)
-				fmt.Println(count)
-			}
-
-			// その名前のShouldDoneノードが存在しない場合
-			if count == 0 {
-				// ShouldDoneノードを作成した後、エッジを作成
-				result, err = transaction.Run(
-					"CREATE (n:ShouldDone) SET " +
-						"n.name = $name, " +
-						"n.created_at = $created_at, " +
-						"n.updated_at = $updated_at " +
-						"RETURN n",
-					map[string]interface{}{
-						"name": jsonSabota.ShouldDone,
-						"created_at": time.Now().Format("2006-01-02 15:04:05"),
-						"updated_at": time.Now().Format("2006-01-02 15:04:05"),
-					})
-
-				if err != nil {
-					return nil, err
-				}
-
-			}
-			// DONTエッジを作成
-			result, err = transaction.Run(
-				"MATCH (sa:Sabota), (sd:ShouldDone) " +
-					"WHERE ID(sa) = $sabotaId AND sd.name = $shouldDoneName " +
-					"CREATE (sa)-[e:DONT]->(sd)" +
-					"RETURN e",
-				map[string]interface{}{
-					"shouldDoneName": jsonSabota.ShouldDone,
-					"sabotaId": updatedSabotaId,
-				})
-
-			if err != nil {
-				return nil, err
-			}
-
-			result, err = transaction.Run(
-				"MATCH (n:Mistake) WHERE n.name = $name RETURN count(n)",
-				map[string]interface{}{"name": jsonSabota.Mistake })
-
-			if err != nil {
-				return nil, err
-			}
-
-			if result.Next() {
-				count = result.Record().GetByIndex(0).(int64)
-				fmt.Println(count)
-			}
-
-			// その名前のMistakeノードが存在しない場合
-			if count == 0 {
-				// Mistakeノードを作成した後、エッジを作成
-				result, err = transaction.Run(
-					"CREATE (n:Mistake) SET " +
-						"n.name = $name, " +
-						"n.created_at = $created_at, " +
-						"n.updated_at = $updated_at " +
-						"RETURN n",
-					map[string]interface{}{
-						"name": jsonSabota.Mistake,
-						"created_at": time.Now().Format("2006-01-02 15:04:05"),
-						"updated_at": time.Now().Format("2006-01-02 15:04:05"),
-					})
-
-				if err != nil {
-					return nil, err
-				}
-
-			}
-			// DONEエッジを作成
-			result, err = transaction.Run(
-				"MATCH (sa:Sabota), (m:Mistake) " +
-					"WHERE ID(sa) = $sabotaId AND m.name = $mistakeName " +
-					"CREATE (sa)-[e:DONE]->(m)" +
-					"RETURN e",
-				map[string]interface{}{
-					"mistakeName": jsonSabota.Mistake,
-					"sabotaId": updatedSabotaId,
-				})
-			return nil, nil
-		})
 
 		return
 	}
