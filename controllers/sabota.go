@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
@@ -43,7 +42,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 			var sabotaList []models.Sabota
 
 			result, err = transaction.Run(
-				"MATCH (n:Sabota) RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body ORDER BY ID(n) DESC;",
+				"MATCH (n:Sabota) RETURN ID(n), n.shouldDone, n.mistake, n.time, n.body, n.created_at, n.updated_at ORDER BY ID(n) DESC;",
 				map[string]interface{}{})
 
 			if err != nil {
@@ -59,6 +58,8 @@ func (c SabotaController) Index() http.HandlerFunc {
 				sabota.Mistake = result.Record().GetByIndex(2).(string)
 				sabota.Time = result.Record().GetByIndex(3).(string)
 				sabota.Body = result.Record().GetByIndex(4).(string)
+				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
+				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
 
 				sabotaList = append(sabotaList, sabota)
 			}
@@ -189,7 +190,7 @@ func (c SabotaController) Store() http.HandlerFunc {
 
 		// sabota新規作成
 		newSabotaId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var newSabotaId int64
+			var newSabotaId int
 
 			result, err = transaction.Run(
 				"CREATE (s:Sabota) SET " +
@@ -214,24 +215,22 @@ func (c SabotaController) Store() http.HandlerFunc {
 			}
 
 			if result.Next() {
-				newSabotaId = result.Record().GetByIndex(0).(int64)
+				newSabotaId = int(result.Record().GetByIndex(0).(int64))
 			}
 
 			result, err = transaction.Run(
 				"MATCH (u:User), (sa:Sabota) " +
-						"WHERE ID(u) = $userId AND ID(sa) = $sabotaId " +
-						"CREATE (u)-[e:POST]->(sa) RETURN e;",
+					"WHERE ID(u) = $userId AND ID(sa) = $sabotaId " +
+					"CREATE (u)-[e:POST]->(sa) RETURN e;",
 				map[string]interface{}{"userId": userId, "sabotaId": newSabotaId})
 
 			return newSabotaId, result.Err()
 		})
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
 			return
 		}
-		fmt.Println("新規作成")
-		spew.Dump(newSabotaId)
-
-		fmt.Println(jsonSabota.ShouldDone)
 
 		// Mistake、ShouldDoneノードとの間に、エッジをはる
 		// 該当する名前のShouldDoneノードの存在確認
@@ -330,8 +329,11 @@ func (c SabotaController) Store() http.HandlerFunc {
 				})
 			return nil, nil
 		})
-		fmt.Println(err)
-		return
+
+		jsonSabota.ID = newSabotaId.(int)
+		jsonSabota.CreatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		jsonSabota.UpdatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		utils.ResponseJSON(w, jsonSabota)
 	}
 }
 
@@ -457,7 +459,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 						"s.mistake = $mistake, "+
 						"s.time = $time, "+
 						"s.body = $body, "+
-						"s.created_at = $created_at, " +
 						"s.updated_at = $updated_at " +
 						"RETURN ID(s);",
 				map[string]interface{}{
@@ -466,7 +467,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 					"mistake": jsonSabota.Mistake,
 					"time": jsonSabota.Time,
 					"body": jsonSabota.Body,
-					"created_at": time.Now().Format("2006-01-02 15:04:05"),
 					"updated_at": time.Now().Format("2006-01-02 15:04:05"),
 				})
 
@@ -588,7 +588,9 @@ func (c SabotaController) Update() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		return
+		jsonSabota.ID = sabotaId
+		jsonSabota.UpdatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		utils.ResponseJSON(w, jsonSabota)
 	}
 }
 
