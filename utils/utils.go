@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
@@ -45,8 +46,20 @@ func CreateUser(user models.User) (string, error) {
 
 	newUser, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 		result, err = transaction.Run(
-			"CREATE (u:User) SET u.email = $email, u.username = $username, u.password = $password RETURN u.email + ', from node ' + id(u)",
-			map[string]interface{}{"email": user.Email, "username": user.Username, "password": user.Password})
+			"CREATE (u:User) SET " +
+				"u.email = $email, " +
+				"u.username = $username, " +
+				"u.password = $password, " +
+				"u.created_at = $created_at, " +
+				"u.updated_at = $updated_at " +
+				"RETURN u.email + ', from node ' + id(u)",
+			map[string]interface{}{
+				"email": user.Email,
+				"username": user.Username,
+				"password": user.Password,
+				"created_at": time.Now().Format("2006-01-02 15:04:05"),
+				"updated_at": time.Now().Format("2006-01-02 15:04:05"),
+			})
 		if err != nil {
 			return nil, err
 		}
