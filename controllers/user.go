@@ -12,6 +12,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/context"
 )
 
 type Controller struct {}
@@ -139,8 +140,17 @@ func (c Controller) TokenVerifyMiddleware(next http.HandlerFunc) http.HandlerFun
 				return
 			}
 
-			if token.Valid {
-				next.ServeHTTP(w, r)
+			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+				fmt.Println("ログインユーザーは")
+				dbUser, err := utils.SearchUserByEmail(claims["email"].(string))
+				if err != nil {
+					errorObject.Message = "ユーザーが見つかりません"
+					utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
+					return
+				}
+				ctx := context.WithValue(r.Context(), "userId", dbUser.ID) // ログインユーザーIDを渡す
+				r = r.WithContext(ctx)
+				next.ServeHTTP(w, r) //ハンドラーへ返却
 			} else {
 				errorObject.Message = error.Error()
 				utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
