@@ -240,7 +240,8 @@ func (c SabotaController) Show() http.HandlerFunc {
 				countResult, err = transaction.Run(
 					"MATCH (sa:Sabota)<-[:COMMENT]-(com:Comment)<-[:POST]-(u:User) " +
 						"WHERE ID(sa) = $sabotaId " +
-						"RETURN count(com), ID(com), com.body, com.created_at, com.updated_at, ID(u), u.username;",
+						"RETURN count(com), ID(com), com.body, com.created_at, com.updated_at, ID(u), u.username " +
+						"ORDER BY com.created_at DESC;",
 					map[string]interface{}{"sabotaId": sabota.ID})
 				if err != nil {
 					return nil, err
