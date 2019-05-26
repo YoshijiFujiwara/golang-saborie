@@ -30,6 +30,11 @@ func (c UserController) Signup() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
+		if user.Username == "" {
+			error.Message = "ユーザーネームがありません"
+			utils.RespondWithError(w, http.StatusBadRequest, error)
+			return
+		}
 		if user.Password == "" {
 			error.Message = "パスワードがありません"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
@@ -82,11 +87,6 @@ func (c UserController) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
-		if user.Username == "" {
-			error.Message = "ユーザーネームがありません"
-			utils.RespondWithError(w, http.StatusBadRequest, error)
-			return
-		}
 		if user.Password == "" {
 			error.Message = "パスワードがありません"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
@@ -121,6 +121,7 @@ func (c UserController) Login() http.HandlerFunc {
 		jwt.Token = token
 
 		utils.ResponseJSON(w, jwt)
+		return
 	}
 }
 
