@@ -30,6 +30,11 @@ func (c UserController) Signup() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
+		if user.Username == "" {
+			error.Message = "ユーザーネームがありません"
+			utils.RespondWithError(w, http.StatusBadRequest, error)
+			return
+		}
 		if user.Password == "" {
 			error.Message = "パスワードがありません"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
@@ -82,17 +87,11 @@ func (c UserController) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
-		if user.Username == "" {
-			error.Message = "ユーザーネームがありません"
-			utils.RespondWithError(w, http.StatusBadRequest, error)
-			return
-		}
 		if user.Password == "" {
 			error.Message = "パスワードがありません"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
-		fmt.Println(user.Email)
 
 		// データベースからemailで検索する
 		dbUser, err := utils.SearchUserByEmail(user.Email)
@@ -100,14 +99,15 @@ func (c UserController) Login() http.HandlerFunc {
 			log.Fatal(err)
 			return
 		}
-		bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
-		if err != nil {
-			error.Message = "パスワードが正しくありません"
+		fmt.Println(dbUser)
+		if dbUser == nil {
+			error.Message = "そのメールアドレスは登録されていません"
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
-		if dbUser == nil {
-			error.Message = "そのメールアドレスは登録されていません"
+		err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
+		if err != nil {
+			error.Message = "パスワードが正しくありません"
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
@@ -115,12 +115,16 @@ func (c UserController) Login() http.HandlerFunc {
 		// トークン取得
 		token, err := utils.GenerateToken(user)
 		if err != nil {
-			log.Fatal(err)
+			error.Message = "認証エラー"
+			utils.RespondWithError(w, http.StatusUnauthorized, error)
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 		jwt.Token = token
+		dbUser.Jwt = jwt
 
-		utils.ResponseJSON(w, jwt)
+		utils.ResponseJSON(w, dbUser)
+		return
 	}
 }
 

@@ -20,27 +20,38 @@ func main() {
 	userController := controllers.UserController{}
 	sabotaController := controllers.SabotaController{}
 	commentController := controllers.CommentController{}
+	metooController := controllers.MetooController{}
+	loveController := controllers.LoveController{}
 
 	// ルーティング
 	router := mux.NewRouter()
+	prefix := "/api/v1"
 
 	// auth
-	router.HandleFunc("/signup", userController.Signup()).Methods("POST")
-	router.HandleFunc("/login", userController.Login()).Methods("POST")
+	router.HandleFunc(prefix + "/signup", userController.Signup()).Methods("POST")
+	router.HandleFunc(prefix + "/login", userController.Login()).Methods("POST")
 
 	// sabota
-	router.HandleFunc("/sabota", sabotaController.Index()).Methods("GET")
-	router.HandleFunc("/sabota", userController.TokenVerifyMiddleware(sabotaController.Store())).Methods("POST") // 認証必要
-	router.HandleFunc("/sabota/{sabotaId}", sabotaController.Show()).Methods("GET")
-	router.HandleFunc("/sabota/{sabotaId}", userController.TokenVerifyMiddleware(sabotaController.Update())).Methods("PUT") // 認証必要
-	router.HandleFunc("/sabota/{sabotaId}", userController.TokenVerifyMiddleware(sabotaController.Destroy())).Methods("DELETE") // 認証必要
+	router.HandleFunc(prefix + "/sabotas", sabotaController.Index()).Methods("GET")
+	router.HandleFunc(prefix + "/sabotas", userController.TokenVerifyMiddleware(sabotaController.Store())).Methods("POST") // 認証必要
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}", sabotaController.Show()).Methods("GET")
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}", userController.TokenVerifyMiddleware(sabotaController.Update())).Methods("PUT") // 認証必要
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}", userController.TokenVerifyMiddleware(sabotaController.Destroy())).Methods("DELETE") // 認証必要
 
 	// comment
-	router.HandleFunc("/sabota/{sabotaId}/comments", commentController.Index()).Methods("GET")
-	router.HandleFunc("/sabota/{sabotaId}/comments", userController.TokenVerifyMiddleware(commentController.Store())).Methods("POST") // 認証必要
-	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", commentController.Show()).Methods("GET")
-	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Update())).Methods("PUT") // 認証必要
-	router.HandleFunc("/sabota/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Destroy())).Methods("DELETE") // 認証必要
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments", commentController.Index()).Methods("GET")
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments", userController.TokenVerifyMiddleware(commentController.Store())).Methods("POST") // 認証必要
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", commentController.Show()).Methods("GET")
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Update())).Methods("PUT") // 認証必要
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/comments/{commentId}", userController.TokenVerifyMiddleware(commentController.Destroy())).Methods("DELETE") // 認証必要
+
+	// metoo
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/metoos", metooController.Index()).Methods("GET")
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/switch_metoo", userController.TokenVerifyMiddleware(metooController.SwitchMetoo())).Methods("PUT") // 認証必要
+
+	// love
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/loves", loveController.Index()).Methods("GET")
+	router.HandleFunc(prefix + "/sabotas/{sabotaId}/switch_love", userController.TokenVerifyMiddleware(loveController.SwitchLove())).Methods("PUT") // 認証必要
 
 	log.Println("Listen on port 8000...")
 	log.Fatal(http.ListenAndServe(":8000", router))

@@ -84,6 +84,7 @@ func SearchUserByEmail(email string) (*models.User, error) {
 		result   neo4j.Result
 		err      error
 		user models.User
+		countUser int
 	)
 
 	if driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), "")); err != nil {
@@ -96,7 +97,7 @@ func SearchUserByEmail(email string) (*models.User, error) {
 	}
 	defer session.Close()
 
-	result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.username, u.password;", map[string]interface{}{
+	result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.username, u.password, count(u);", map[string]interface{}{
 		"email": email,
 	})
 
@@ -108,12 +109,21 @@ func SearchUserByEmail(email string) (*models.User, error) {
 		user.Email = result.Record().GetByIndex(1).(string)
 		user.Username = result.Record().GetByIndex(2).(string)
 		user.Password = result.Record().GetByIndex(3).(string)
+		countUser = int(result.Record().GetByIndex(4).(int64))
 		fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%T'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
 	}
 	if err = result.Err(); err != nil {
 		return nil, err // handle error
 	}
-	return &user, err
+
+	fmt.Println(countUser)
+
+	if countUser > 0 {
+		return &user, err
+	} else {
+		return nil, err
+	}
+
 }
 
 

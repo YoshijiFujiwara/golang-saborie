@@ -6,6 +6,13 @@ type Sabota struct {
 	Mistake    string `json:"mistake"`
 	Time       string `json:"time"`
 	Body       string `json:"body"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+
+	PostUser        User `json:"postUser"`
+	NumberOfMetoo   int  `json:"numberOfMetoo"`
+	NumberOfLove    int  `json:"numberOfLove"`
+	NumberOfComment int  `json:"numberOfComment"`
+
+	Comments []Comment `json:"comments"`
 }
