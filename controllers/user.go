@@ -92,12 +92,17 @@ func (c UserController) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
 		}
-		fmt.Println(user.Email)
 
 		// データベースからemailで検索する
 		dbUser, err := utils.SearchUserByEmail(user.Email)
 		if err != nil {
 			log.Fatal(err)
+			return
+		}
+		fmt.Println(dbUser)
+		if dbUser == nil {
+			error.Message = "そのメールアドレスは登録されていません"
+			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
 		bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
@@ -106,16 +111,14 @@ func (c UserController) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
-		if dbUser == nil {
-			error.Message = "そのメールアドレスは登録されていません"
-			utils.RespondWithError(w, http.StatusUnauthorized, error)
-			return
-		}
+
 
 		// トークン取得
 		token, err := utils.GenerateToken(user)
 		if err != nil {
-			log.Fatal(err)
+			error.Message = "認証エラー"
+			utils.RespondWithError(w, http.StatusUnauthorized, error)
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 		jwt.Token = token

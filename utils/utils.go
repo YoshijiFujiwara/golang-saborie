@@ -109,6 +109,9 @@ func SearchUserByEmail(email string) (*models.User, error) {
 		user.Username = result.Record().GetByIndex(2).(string)
 		user.Password = result.Record().GetByIndex(3).(string)
 		fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%T'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
+	} else {
+		// 該当するユーザーが以内場合は、nilを返す
+		return nil, err
 	}
 	if err = result.Err(); err != nil {
 		return nil, err // handle error
