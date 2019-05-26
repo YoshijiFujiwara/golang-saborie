@@ -8,8 +8,10 @@ import (
 	"os"
 	"portfolio/saborie/models"
 	"portfolio/saborie/utils"
+	"strconv"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
@@ -42,11 +44,11 @@ func (c UserController) Signup() http.HandlerFunc {
 		}
 
 		// すでにメールアドレスが登録されていないか検証する
-		dbUser, err := utils.SearchUserByEmail(user.Email)
+		dbUser, err := utils.SearchUser(user.Email, "email")
 		if err != nil {
 			log.Fatal(err)
 		}
-		if dbUser.Password != "" {
+		if dbUser != nil {
 			error.Message = "そのメールアドレスはすでに使用されています"
 			utils.RespondWithError(w, http.StatusBadRequest, error)
 			return
@@ -94,7 +96,7 @@ func (c UserController) Login() http.HandlerFunc {
 		}
 
 		// データベースからemailで検索する
-		dbUser, err := utils.SearchUserByEmail(user.Email)
+		dbUser, err := utils.SearchUser(user.Email, "email")
 		if err != nil {
 			log.Fatal(err)
 			return
@@ -128,6 +130,29 @@ func (c UserController) Login() http.HandlerFunc {
 	}
 }
 
+func (c UserController) Me() http.HandlerFunc {
+	fmt.Println("me invoked")
+	return func (w http.ResponseWriter, r *http.Request) {
+		var error models.Error
+
+		userId := r.Context().Value("userId") // ログインユーザーID
+		fmt.Println("hogehoge")
+		fmt.Println(userId)
+		dbUser, err := utils.SearchUser(strconv.Itoa(userId.(int)), "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if dbUser == nil {
+			error.Message = "ユーザーを取得できません"
+			utils.RespondWithError(w, http.StatusBadRequest, error)
+			return
+		}
+
+		utils.ResponseJSON(w, dbUser)
+		return
+	}
+}
+
 func (c UserController) TokenVerifyMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var errorObject models.Error
@@ -153,12 +178,18 @@ func (c UserController) TokenVerifyMiddleware(next http.HandlerFunc) http.Handle
 			// todo トークン有効期限切れチェック
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 
-				dbUser, err := utils.SearchUserByEmail(claims["email"].(string))
+				dbUser, err := utils.SearchUser(claims["email"].(string), "email")
 				if err != nil {
+					errorObject.Message = err.Error()
+					utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
+					return
+				}
+				if dbUser == nil {
 					errorObject.Message = "ユーザーが見つかりません"
 					utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
 					return
 				}
+				spew.Dump(dbUser)
 				ctx := context.WithValue(r.Context(), "userId", dbUser.ID) // ログインユーザーIDを渡す
 				r = r.WithContext(ctx)
 				next.ServeHTTP(w, r) //ハンドラーへ返却
