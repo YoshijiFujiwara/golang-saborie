@@ -130,10 +130,12 @@ func SearchUserByEmail(email string) (*models.User, error) {
 func GenerateToken(user models.User) (string, error) {
 	var err error
 	secret := os.Getenv("token_secret")
+	ttl := 60 * time.Second
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
 		"iss": os.Getenv("token_iss"),
+		"time": time.Now().UTC().Add(ttl).Unix(),
 	})
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {

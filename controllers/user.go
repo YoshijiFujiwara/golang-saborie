@@ -150,8 +150,9 @@ func (c UserController) TokenVerifyMiddleware(next http.HandlerFunc) http.Handle
 				return
 			}
 
+			// todo トークン有効期限切れチェック
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-				fmt.Println("ログインユーザーは")
+
 				dbUser, err := utils.SearchUserByEmail(claims["email"].(string))
 				if err != nil {
 					errorObject.Message = "ユーザーが見つかりません"
