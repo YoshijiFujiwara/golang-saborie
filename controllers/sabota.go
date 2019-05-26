@@ -65,6 +65,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 				var user models.User
 				var numberOfMetoo int
 				var numberOfLove int
+				var numberOfComment int
 
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
@@ -104,8 +105,22 @@ func (c SabotaController) Index() http.HandlerFunc {
 					numberOfLove = int(countResult.Record().GetByIndex(0).(int64))
 				}
 
+				// commentの数をカウント
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[:COMMENT]-(com:Comment) " +
+						"WHERE ID(n) = $sabotaId " +
+						"RETURN count(com) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				if countResult.Next() {
+					numberOfComment = int(countResult.Record().GetByIndex(0).(int64))
+				}
+
 				sabota.NumberOfLove = numberOfLove
 				sabota.NumberOfMetoo = numberOfMetoo
+				sabota.NumberOfComment = numberOfComment
 
 				sabotaList = append(sabotaList, sabota)
 			}
@@ -218,8 +233,39 @@ func (c SabotaController) Show() http.HandlerFunc {
 					numberOfLove = int(countResult.Record().GetByIndex(0).(int64))
 				}
 
+				var numberOfComment int
+				var commentList []models.Comment
+
+				// commentの一覧を取得する
+				countResult, err = transaction.Run(
+					"MATCH (sa:Sabota)<-[:COMMENT]-(com:Comment)<-[:POST]-(u:User) " +
+						"WHERE ID(sa) = $sabotaId " +
+						"RETURN count(com), ID(com), com.body, com.created_at, com.updated_at, ID(u), u.username;",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				for countResult.Next() {
+					var comment models.Comment
+					var postUser models.User
+
+					numberOfComment = int(countResult.Record().GetByIndex(0).(int64))
+					comment.ID = int(countResult.Record().GetByIndex(1).(int64))
+					comment.Body = countResult.Record().GetByIndex(2).(string)
+					comment.CreatedAt = countResult.Record().GetByIndex(3).(string)
+					comment.UpdatedAt = countResult.Record().GetByIndex(4).(string)
+
+					postUser.ID = int(countResult.Record().GetByIndex(5).(int64))
+					postUser.Username = countResult.Record().GetByIndex(6).(string)
+
+					comment.PostUser = postUser
+					commentList = append(commentList, comment)
+				}
+
 				sabota.NumberOfLove = numberOfLove
 				sabota.NumberOfMetoo = numberOfMetoo
+				sabota.NumberOfComment = numberOfComment
+				sabota.Comments = commentList
 
 				return sabota, result.Err()
 			} else {
