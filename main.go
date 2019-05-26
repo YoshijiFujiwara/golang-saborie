@@ -28,8 +28,9 @@ func main() {
 	prefix := "/api/v1"
 
 	// auth
-	router.HandleFunc(prefix + "/signup", userController.Signup()).Methods("POST")
-	router.HandleFunc(prefix + "/login", userController.Login()).Methods("POST")
+	router.HandleFunc(prefix + "/users/signup", userController.Signup()).Methods("POST")
+	router.HandleFunc(prefix + "/users/login", userController.Login()).Methods("POST")
+	router.HandleFunc(prefix + "/users/me", userController.TokenVerifyMiddleware(userController.Me())).Methods("GET")
 
 	// sabota
 	router.HandleFunc(prefix + "/sabotas", sabotaController.Index()).Methods("GET")

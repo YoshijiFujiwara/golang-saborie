@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
+	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -77,7 +78,8 @@ func CreateUser(user models.User) (string, error) {
 	return newUser.(string), nil
 }
 
-func SearchUserByEmail(email string) (*models.User, error) {
+func SearchUser(clue string, variableType string) (*models.User, error) {
+
 	var (
 		driver   neo4j.Driver
 		session  neo4j.Session
@@ -97,9 +99,26 @@ func SearchUserByEmail(email string) (*models.User, error) {
 	}
 	defer session.Close()
 
-	result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.username, u.password, count(u);", map[string]interface{}{
-		"email": email,
-	})
+	switch variableType {
+	case "id":
+		// int型にもどさなあかんかった！！！！！！
+		userIdInt, err := strconv.Atoi(clue)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+		result, err = session.Run("MATCH (u:User) WHERE ID(u) = $userId return id(u), u.email, u.username, u.password, count(u);", map[string]interface{}{
+			"userId": userIdInt,
+		})
+		break
+	case "email":
+		result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.username, u.password, count(u);", map[string]interface{}{
+			"email": clue,
+		})
+
+		break
+	default:
+		return nil, err
+	}
 
 	if err != nil {
 		return nil, err // handle error
@@ -123,17 +142,81 @@ func SearchUserByEmail(email string) (*models.User, error) {
 	} else {
 		return nil, err
 	}
-
 }
 
+func SearchUserByEmail(clue string, variableType string) (*models.User, error) {
+
+	var (
+		driver   neo4j.Driver
+		session  neo4j.Session
+		result   neo4j.Result
+		err      error
+		user models.User
+		countUser int
+	)
+
+	if driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), "")); err != nil {
+		return nil, err // handle error
+	}
+	defer driver.Close()
+
+	if session, err = driver.Session(neo4j.AccessModeWrite); err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	switch variableType {
+	case "id":
+		fmt.Println("id")
+		fmt.Println(clue)
+		result, err = session.Run("MATCH (u:User) WHERE ID(u) = 176 return id(u), u.email, u.username, u.password, count(u);", map[string]interface{}{
+			"userId": clue,
+		})
+		break
+	case "email":
+		fmt.Println("email")
+		fmt.Println(clue)
+		result, err = session.Run("MATCH (u:User {email: $email}) return id(u), u.email, u.username, u.password, count(u);", map[string]interface{}{
+			"email": clue,
+		})
+		break
+	default:
+		return nil, err
+	}
+
+	if err != nil {
+		return nil, err // handle error
+	}
+	if result.Next() {
+		user.ID = int(result.Record().GetByIndex(0).(int64))
+		user.Email = result.Record().GetByIndex(1).(string)
+		user.Username = result.Record().GetByIndex(2).(string)
+		user.Password = result.Record().GetByIndex(3).(string)
+		countUser = int(result.Record().GetByIndex(4).(int64))
+		fmt.Printf("Matched user with Id = '%d' and Email = '%s' and Password = '%T'\n", result.Record().GetByIndex(0).(int64), result.Record().GetByIndex(1).(string), result.Record().GetByIndex(2).(string))
+	}
+	if err = result.Err(); err != nil {
+		return nil, err // handle error
+	}
+
+	fmt.Println(countUser)
+
+	if countUser > 0 {
+		return &user, err
+	} else {
+		return nil, err
+	}
+}
 
 func GenerateToken(user models.User) (string, error) {
 	var err error
 	secret := os.Getenv("token_secret")
+	ttl := 60 * time.Second
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
 		"iss": os.Getenv("token_iss"),
+		"time": time.Now().UTC().Add(ttl).Unix(),
 	})
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
