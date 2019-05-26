@@ -105,13 +105,12 @@ func (c UserController) Login() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
-		bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
+		err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password))
 		if err != nil {
 			error.Message = "パスワードが正しくありません"
 			utils.RespondWithError(w, http.StatusUnauthorized, error)
 			return
 		}
-
 
 		// トークン取得
 		token, err := utils.GenerateToken(user)
@@ -122,8 +121,9 @@ func (c UserController) Login() http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusOK)
 		jwt.Token = token
+		dbUser.Jwt = jwt
 
-		utils.ResponseJSON(w, jwt)
+		utils.ResponseJSON(w, dbUser)
 		return
 	}
 }
