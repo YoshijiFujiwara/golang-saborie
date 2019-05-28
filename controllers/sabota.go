@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
@@ -18,6 +19,9 @@ type SabotaController struct {}
 
 func (c SabotaController) Index() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var validationError models.Error
+		fmt.Println("sabota index invoked")
+
 		// 時系列順でsabotaを取得する
 		var (
 			err     error
@@ -35,6 +39,8 @@ func (c SabotaController) Index() http.HandlerFunc {
 
 		session, err = driver.Session(neo4j.AccessModeWrite)
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		defer session.Close()
@@ -60,12 +66,16 @@ func (c SabotaController) Index() http.HandlerFunc {
 				return nil, err
 			}
 
+			fmt.Println("sabota index invoked 2")
+
+
 			for result.Next() {
 				var sabota models.Sabota
 				var user models.User
-				var numberOfMetoo int
-				var numberOfLove int
-				var numberOfComment int
+
+				var metooUserIds []int
+				var loveUserIds []int
+				var commentUserIds []int
 
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
@@ -79,48 +89,54 @@ func (c SabotaController) Index() http.HandlerFunc {
 
 				sabota.PostUser = user
 
-				// metooの数をcount
+				// metooの数をcount, userIdのリストを作成
 				countResult, err = transaction.Run(
 					"MATCH (n:Sabota)<-[e:METOO]-(u:User) " +
 							"WHERE ID(n) = $sabotaId " +
-							"RETURN count(e) ",
+							"RETURN ID(u) ",
 					map[string]interface{}{"sabotaId": sabota.ID})
 				if err != nil {
 					return nil, err
 				}
-				if countResult.Next() {
-					numberOfMetoo = int(countResult.Record().GetByIndex(0).(int64))
+				for countResult.Next() {
+					metooUserIds = append(metooUserIds, int(countResult.Record().GetByIndex(0).(int64)))
 				}
 
-				// loveの数
+				// loveの数, userIdのリストを作成
 				countResult, err = transaction.Run(
 					"MATCH (n:Sabota)<-[e:LOVE]-(u:User) " +
 							"WHERE ID(n) = $sabotaId " +
-							"RETURN count(e) ",
+							"RETURN ID(u) ",
 					map[string]interface{}{"sabotaId": sabota.ID})
 				if err != nil {
 					return nil, err
 				}
-				if countResult.Next() {
-					numberOfLove = int(countResult.Record().GetByIndex(0).(int64))
+				for countResult.Next() {
+					loveUserIds = append(loveUserIds, int(countResult.Record().GetByIndex(0).(int64)))
 				}
 
-				// commentの数をカウント
+				// commentの数をカウント, userIdのリストを作成
 				countResult, err = transaction.Run(
-					"MATCH (n:Sabota)<-[:COMMENT]-(com:Comment) " +
+					"MATCH (n:Sabota)<-[:COMMENT]-(com:Comment)<-[:POST]-(u:User) " +
 						"WHERE ID(n) = $sabotaId " +
-						"RETURN count(com) ",
+						"RETURN ID(u) ",
 					map[string]interface{}{"sabotaId": sabota.ID})
 				if err != nil {
 					return nil, err
 				}
-				if countResult.Next() {
-					numberOfComment = int(countResult.Record().GetByIndex(0).(int64))
+				for countResult.Next() {
+					commentUserIds = append(commentUserIds, int(countResult.Record().GetByIndex(0).(int64)))
 				}
 
-				sabota.NumberOfLove = numberOfLove
-				sabota.NumberOfMetoo = numberOfMetoo
-				sabota.NumberOfComment = numberOfComment
+				spew.Dump(commentUserIds)
+
+				sabota.NumberOfLove = len(loveUserIds)
+				sabota.NumberOfMetoo = len(metooUserIds)
+				sabota.NumberOfComment = len(commentUserIds)
+
+				sabota.LoveUserIds = loveUserIds
+				sabota.MetooUserIds = metooUserIds
+				sabota.CommentUserIds = commentUserIds
 
 				sabotaList = append(sabotaList, sabota)
 			}
@@ -129,6 +145,8 @@ func (c SabotaController) Index() http.HandlerFunc {
 		})
 
 		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
 		// sabotaリストをjsonで返す
@@ -191,8 +209,9 @@ func (c SabotaController) Show() http.HandlerFunc {
 
 			if result.Next() {
 				var user models.User
-				var numberOfMetoo int
-				var numberOfLove int
+				var metooUserIds []int
+				var loveUserIds []int
+				var commentUserIds []int
 
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
@@ -211,29 +230,28 @@ func (c SabotaController) Show() http.HandlerFunc {
 				countResult, err = transaction.Run(
 					"MATCH (n:Sabota)<-[e:METOO]-(u:User) " +
 						"WHERE ID(n) = $sabotaId " +
-						"RETURN count(e) ",
+						"RETURN ID(u) ",
 					map[string]interface{}{"sabotaId": sabota.ID})
 				if err != nil {
 					return nil, err
 				}
 				if countResult.Next() {
-					numberOfMetoo = int(countResult.Record().GetByIndex(0).(int64))
+					metooUserIds = append(metooUserIds, int(countResult.Record().GetByIndex(0).(int64)))
 				}
 
 				// loveの数
 				countResult, err = transaction.Run(
 					"MATCH (n:Sabota)<-[e:LOVE]-(u:User) " +
 						"WHERE ID(n) = $sabotaId " +
-						"RETURN count(e) ",
+						"RETURN ID(u) ",
 					map[string]interface{}{"sabotaId": sabota.ID})
 				if err != nil {
 					return nil, err
 				}
 				if countResult.Next() {
-					numberOfLove = int(countResult.Record().GetByIndex(0).(int64))
+					loveUserIds = append(loveUserIds, int(countResult.Record().GetByIndex(0).(int64)))
 				}
 
-				var numberOfComment int
 				var commentList []models.Comment
 
 				// commentの一覧を取得する
@@ -250,22 +268,27 @@ func (c SabotaController) Show() http.HandlerFunc {
 					var comment models.Comment
 					var postUser models.User
 
-					numberOfComment = int(countResult.Record().GetByIndex(0).(int64))
 					comment.ID = int(countResult.Record().GetByIndex(1).(int64))
 					comment.Body = countResult.Record().GetByIndex(2).(string)
 					comment.CreatedAt = countResult.Record().GetByIndex(3).(string)
-					comment.UpdatedAt = countResult.Record().GetByIndex(4).(string)
 
 					postUser.ID = int(countResult.Record().GetByIndex(5).(int64))
 					postUser.Username = countResult.Record().GetByIndex(6).(string)
+
+					commentUserIds = append(commentUserIds, int(countResult.Record().GetByIndex(5).(int64)))
 
 					comment.PostUser = postUser
 					commentList = append(commentList, comment)
 				}
 
-				sabota.NumberOfLove = numberOfLove
-				sabota.NumberOfMetoo = numberOfMetoo
-				sabota.NumberOfComment = numberOfComment
+				sabota.NumberOfLove = len(loveUserIds)
+				sabota.NumberOfMetoo = len(metooUserIds)
+				sabota.NumberOfComment = len(commentUserIds)
+
+				sabota.LoveUserIds = loveUserIds
+				sabota.MetooUserIds = metooUserIds
+				sabota.CommentUserIds = commentUserIds
+
 				sabota.Comments = commentList
 
 				return sabota, result.Err()
@@ -292,6 +315,8 @@ func (c SabotaController) Store() http.HandlerFunc {
 
 		// リクエスト内容をデコードして作成するsabotaデータを取り出す
 		json.NewDecoder(r.Body).Decode(&jsonSabota)
+		fmt.Println("hogehoge")
+		fmt.Println(jsonSabota)
 		// 検証
 		if jsonSabota.ShouldDone == "" {
 			validationError.Message = "やるべきだったことが抜けています"
@@ -475,9 +500,10 @@ func (c SabotaController) Store() http.HandlerFunc {
 		})
 
 		jsonSabota.ID = newSabotaId.(int)
-		jsonSabota.CreatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
-		jsonSabota.UpdatedAt = time.Now().Format("2006-01-02 15:04:05") // うそ
+		jsonSabota.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+		jsonSabota.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
 		utils.ResponseJSON(w, jsonSabota)
+		return
 	}
 }
 
