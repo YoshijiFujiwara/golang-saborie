@@ -10,9 +10,6 @@ type Sabota struct {
 	UpdatedAt  string `json:"updated_at"`
 
 	PostUser        User `json:"postUser"`
-	NumberOfMetoo   int  `json:"numberOfMetoo"`
-	NumberOfLove    int  `json:"numberOfLove"`
-	NumberOfComment int  `json:"numberOfComment"`
 
 	MetooUserIds   []int `json:"metooUserIds"`
 	LoveUserIds    []int `json:"loveUserIds"`

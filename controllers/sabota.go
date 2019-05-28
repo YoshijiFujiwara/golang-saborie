@@ -20,6 +20,7 @@ type SabotaController struct {}
 func (c SabotaController) Index() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var validationError models.Error
+
 		fmt.Println("sabota index invoked")
 
 		// 時系列順でsabotaを取得する
@@ -129,10 +130,6 @@ func (c SabotaController) Index() http.HandlerFunc {
 				}
 
 				spew.Dump(commentUserIds)
-
-				sabota.NumberOfLove = len(loveUserIds)
-				sabota.NumberOfMetoo = len(metooUserIds)
-				sabota.NumberOfComment = len(commentUserIds)
 
 				sabota.LoveUserIds = loveUserIds
 				sabota.MetooUserIds = metooUserIds
@@ -281,10 +278,6 @@ func (c SabotaController) Show() http.HandlerFunc {
 					commentList = append(commentList, comment)
 				}
 
-				sabota.NumberOfLove = len(loveUserIds)
-				sabota.NumberOfMetoo = len(metooUserIds)
-				sabota.NumberOfComment = len(commentUserIds)
-
 				sabota.LoveUserIds = loveUserIds
 				sabota.MetooUserIds = metooUserIds
 				sabota.CommentUserIds = commentUserIds
@@ -315,8 +308,6 @@ func (c SabotaController) Store() http.HandlerFunc {
 
 		// リクエスト内容をデコードして作成するsabotaデータを取り出す
 		json.NewDecoder(r.Body).Decode(&jsonSabota)
-		fmt.Println("hogehoge")
-		fmt.Println(jsonSabota)
 		// 検証
 		if jsonSabota.ShouldDone == "" {
 			validationError.Message = "やるべきだったことが抜けています"
@@ -415,7 +406,6 @@ func (c SabotaController) Store() http.HandlerFunc {
 
 			if result.Next() {
 				count = result.Record().GetByIndex(0).(int64)
-				fmt.Println(count)
 			}
 
 			// その名前のShouldDoneノードが存在しない場合
@@ -463,7 +453,6 @@ func (c SabotaController) Store() http.HandlerFunc {
 
 			if result.Next() {
 				count = result.Record().GetByIndex(0).(int64)
-				fmt.Println(count)
 			}
 
 			// その名前のMistakeノードが存在しない場合
@@ -576,8 +565,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 			if result.Next() {
 				postUserId = int(result.Record().GetByIndex(0).(int64))
 			}
-			fmt.Println(postUserId)
-
 
 			return postUserId, result.Err()
 		})
@@ -670,7 +657,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 
 			if result.Next() {
 				count = result.Record().GetByIndex(0).(int64)
-				fmt.Println(count)
 			}
 
 			// その名前のShouldDoneノードが存在しない場合
@@ -718,7 +704,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 
 			if result.Next() {
 				count = result.Record().GetByIndex(0).(int64)
-				fmt.Println(count)
 			}
 
 			// その名前のMistakeノードが存在しない場合
@@ -814,8 +799,6 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 			if result.Next() {
 				postUserId = int(result.Record().GetByIndex(0).(int64))
 			}
-			fmt.Println(postUserId)
-
 
 			return postUserId, result.Err()
 		})
@@ -824,7 +807,6 @@ func (c SabotaController) Destroy() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		fmt.Println(postUserId)
 
 		if postUserId != userId {
 			validationError.Message = "不正なリクエストです"
