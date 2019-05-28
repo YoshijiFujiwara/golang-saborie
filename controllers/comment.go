@@ -118,15 +118,16 @@ func (c CommentController) Store() http.HandlerFunc {
 		defer session.Close()
 
 		// コメント新規作成
-		newCommentId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var newCommentId int
+		newComment, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var newComment models.Comment
+			var postUser models.User
 
 			result, err = transaction.Run(
 				"CREATE (c:Comment) SET " +
 					"c.body = $body, "+
 					"c.created_at = $created_at, " +
 					"c.updated_at = $updated_at " +
-					"RETURN ID(c);",
+					"RETURN ID(c), c.body, c.created_at, c.updated_at;",
 				map[string]interface{}{
 					"body": jsonComment.Body,
 					"created_at": time.Now().Format("2006-01-02 15:04:05"),
@@ -138,16 +139,18 @@ func (c CommentController) Store() http.HandlerFunc {
 			}
 
 			if result.Next() {
-				newCommentId = int(result.Record().GetByIndex(0).(int64))
+				newComment.ID = int(result.Record().GetByIndex(0).(int64))
+				newComment.Body = result.Record().GetByIndex(1).(string)
+				newComment.CreatedAt = result.Record().GetByIndex(2).(string)
+				newComment.UpdatedAt = result.Record().GetByIndex(3).(string)
 			}
-
 
 			// sabotaとの関連付け
 			result, err = transaction.Run(
 				"MATCH (sa:Sabota), (com:Comment) " +
 					"WHERE ID(sa) = $sabotaId AND ID(com) = $commentId " +
 					"CREATE (sa)<-[e:COMMENT]-(com) RETURN e;",
-				map[string]interface{}{"sabotaId": sabotaId, "commentId": newCommentId})
+				map[string]interface{}{"sabotaId": sabotaId, "commentId": newComment.ID})
 			if err != nil {
 				return nil, err
 			}
@@ -156,14 +159,22 @@ func (c CommentController) Store() http.HandlerFunc {
 			result, err = transaction.Run(
 				"MATCH (u:User), (com:Comment) " +
 					"WHERE ID(u) = $userId AND ID(com) = $commentId " +
-					"CREATE (u)-[e:POST]->(com) RETURN e;",
-				map[string]interface{}{"userId": userId, "commentId": newCommentId})
+					"CREATE (u)-[e:POST]->(com) RETURN ID(u), u.username, u.email, u.created_at, u.updated_at;",
+				map[string]interface{}{"userId": userId, "commentId": newComment.ID})
 			if err != nil{
 				return nil, err
 			}
+			if result.Next() {
+				postUser.ID = int(result.Record().GetByIndex(0).(int64))
+				postUser.Username = result.Record().GetByIndex(1).(string)
+				postUser.Email = result.Record().GetByIndex(2).(string)
+				postUser.CreatedAt = result.Record().GetByIndex(3).(string)
+				postUser.UpdatedAt = result.Record().GetByIndex(4).(string)
+			}
 
+			newComment.PostUser = postUser
 
-			return newCommentId, result.Err()
+			return newComment, result.Err()
 		})
 		if err != nil {
 			validationError.Message = err.Error()
@@ -171,8 +182,7 @@ func (c CommentController) Store() http.HandlerFunc {
 			return
 		}
 
-		jsonComment.ID = newCommentId.(int)
-		utils.ResponseJSON(w, jsonComment)
+		utils.ResponseJSON(w, newComment)
 	}
 }
 

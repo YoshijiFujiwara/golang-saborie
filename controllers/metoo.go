@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
@@ -124,10 +123,6 @@ func (c MetooController) SwitchMetoo() http.HandlerFunc {
 			if result.Next() {
 				count = int(result.Record().GetByIndex(0).(int64))
 			}
-
-			fmt.Println(count)
-			fmt.Println(sabotaId)
-			fmt.Println(userId)
 
 			return count, result.Err()
 		})
