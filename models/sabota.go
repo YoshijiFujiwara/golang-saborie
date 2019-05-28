@@ -14,5 +14,9 @@ type Sabota struct {
 	NumberOfLove    int  `json:"numberOfLove"`
 	NumberOfComment int  `json:"numberOfComment"`
 
+	MetooUserIds   []int `json:"metooUserIds"`
+	LoveUserIds    []int `json:"loveUserIds"`
+	CommentUserIds []int `json:"commentUserIds"`
+
 	Comments []Comment `json:"comments"`
 }

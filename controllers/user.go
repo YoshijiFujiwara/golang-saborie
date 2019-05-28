@@ -19,7 +19,7 @@ import (
 
 type UserController struct {}
 
-func (c UserController) Signup() http.HandlerFunc {
+func (c UserController) Register() http.HandlerFunc {
 	return func (w http.ResponseWriter, r *http.Request) {
 		var user models.User
 		var error models.Error
