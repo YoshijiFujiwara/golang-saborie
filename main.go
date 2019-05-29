@@ -34,6 +34,7 @@ func main() {
 
 	// sabota
 	router.HandleFunc(prefix + "/sabotas", sabotaController.Index()).Methods("GET")
+	router.HandleFunc(prefix + "/search_sabotas", sabotaController.SearchSabotas()).Methods("POST") // 検索
 	router.HandleFunc(prefix + "/sabotas", userController.TokenVerifyMiddleware(sabotaController.Store())).Methods("POST") // 認証必要
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}", sabotaController.Show()).Methods("GET")
 	router.HandleFunc(prefix + "/sabotas/{sabotaId}", userController.TokenVerifyMiddleware(sabotaController.Update())).Methods("PUT") // 認証必要
