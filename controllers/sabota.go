@@ -81,7 +81,7 @@ func (c SabotaController) Index() http.HandlerFunc {
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
 				sabota.Mistake = result.Record().GetByIndex(2).(string)
-				sabota.Time = result.Record().GetByIndex(3).(string)
+				sabota.Time = int(result.Record().GetByIndex(3).(int64))
 				sabota.Body = result.Record().GetByIndex(4).(string)
 				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
 				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
@@ -213,7 +213,7 @@ func (c SabotaController) Show() http.HandlerFunc {
 				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
 				sabota.Mistake = result.Record().GetByIndex(2).(string)
-				sabota.Time = result.Record().GetByIndex(3).(string)
+				sabota.Time = int(result.Record().GetByIndex(3).(int64))
 				sabota.Body = result.Record().GetByIndex(4).(string)
 				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
 				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
@@ -316,11 +316,6 @@ func (c SabotaController) Store() http.HandlerFunc {
 		}
 		if jsonSabota.Mistake == "" {
 			validationError.Message = "やっちゃったことが抜けています"
-			utils.RespondWithError(w, http.StatusBadRequest, validationError)
-			return
-		}
-		if jsonSabota.Time == "" {
-			validationError.Message = "時間がありません"
 			utils.RespondWithError(w, http.StatusBadRequest, validationError)
 			return
 		}
@@ -516,11 +511,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 		}
 		if jsonSabota.Mistake == "" {
 			validationError.Message = "やっちゃったことが抜けています"
-			utils.RespondWithError(w, http.StatusBadRequest, validationError)
-			return
-		}
-		if jsonSabota.Time == "" {
-			validationError.Message = "時間がありません"
 			utils.RespondWithError(w, http.StatusBadRequest, validationError)
 			return
 		}
