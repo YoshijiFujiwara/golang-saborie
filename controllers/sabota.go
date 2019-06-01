@@ -298,7 +298,6 @@ func (c SabotaController) SearchSabotas() http.HandlerFunc {
 					commentUserIds = append(commentUserIds, int(countResult.Record().GetByIndex(0).(int64)))
 				}
 
-
 				sabota.LoveUserIds = loveUserIds
 				sabota.MetooUserIds = metooUserIds
 				sabota.CommentUserIds = commentUserIds

@@ -13,14 +13,15 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 )
 
-type UserController struct {}
+type UserController struct{}
 
 func (c UserController) Register() http.HandlerFunc {
-	return func (w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var user models.User
 		var error models.Error
 		// リクエスト内容のデコード
@@ -76,7 +77,7 @@ func (c UserController) Register() http.HandlerFunc {
 }
 
 func (c UserController) Login() http.HandlerFunc {
-	return func (w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var user models.User
 		var jwt models.JWT
 		var error models.Error
@@ -132,7 +133,7 @@ func (c UserController) Login() http.HandlerFunc {
 
 func (c UserController) Me() http.HandlerFunc {
 	fmt.Println("me invoked")
-	return func (w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var error models.Error
 
 		userId := r.Context().Value("userId") // ログインユーザーID
@@ -204,4 +205,140 @@ func (c UserController) TokenVerifyMiddleware(next http.HandlerFunc) http.Handle
 			return
 		}
 	})
+}
+
+func (c UserController) GetMistakeSummary() http.HandlerFunc {
+	fmt.Println("mistake summary invoked")
+	return func(w http.ResponseWriter, r *http.Request) {
+		var validationError models.Error
+
+		userId := r.Context().Value("userId") // ログインユーザーID
+		dbUser, err := utils.SearchUser(strconv.Itoa(userId.(int)), "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if dbUser == nil {
+			validationError.Message = "ユーザーを取得できません"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+
+		// ユーザーのミステイクのサマリーを取得する
+		var (
+			//err         error
+			driver      neo4j.Driver
+			session     neo4j.Session
+			result      neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer session.Close()
+
+		mistakeSummary, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			summary := make(map[string](map[string]int))
+
+			result, err = transaction.Run(
+				"MATCH (m:Mistake)<-[:DONE]-(s:Sabota)<-[e:POST]-(u:User) WHERE ID(u) = $userId " +
+				"RETURN m.name, sum(s.time) as sumTime, count(s.time)",
+				map[string]interface{}{"userId": userId})
+
+			if err != nil {
+				return nil, err
+			}
+
+			for result.Next() {
+				inner := make(map[string]int)
+				inner["sumTime"] = int(result.Record().GetByIndex(1).(int64))
+				inner["count"] = int(result.Record().GetByIndex(2).(int64))
+
+				summary[result.Record().GetByIndex(0).(string)] = inner
+			}
+
+			return summary, err
+		})
+
+		utils.ResponseJSON(w, mistakeSummary)
+		return
+	}
+}
+
+func (c UserController) GetShouldDoneSummary() http.HandlerFunc {
+	fmt.Println("mistake summary invoked")
+	return func(w http.ResponseWriter, r *http.Request) {
+		var validationError models.Error
+
+		userId := r.Context().Value("userId") // ログインユーザーID
+		dbUser, err := utils.SearchUser(strconv.Itoa(userId.(int)), "id")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if dbUser == nil {
+			validationError.Message = "ユーザーを取得できません"
+			utils.RespondWithError(w, http.StatusBadRequest, validationError)
+			return
+		}
+
+		// ユーザーのミステイクのサマリーを取得する
+		var (
+			//err         error
+			driver      neo4j.Driver
+			session     neo4j.Session
+			result      neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer session.Close()
+
+		mistakeSummary, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			summary := make(map[string](map[string]int))
+
+			result, err = transaction.Run(
+				"MATCH (sd:ShouldDone)<-[:DONT]-(s:Sabota)<-[e:POST]-(u:User) WHERE ID(u) = $userId " +
+					"RETURN sd.name, sum(s.time), count(s.time)",
+				map[string]interface{}{"userId": userId})
+
+			if err != nil {
+				return nil, err
+			}
+
+			for result.Next() {
+				inner := make(map[string]int)
+				inner["sumTime"] = int(result.Record().GetByIndex(1).(int64))
+				inner["count"] = int(result.Record().GetByIndex(2).(int64))
+
+				summary[result.Record().GetByIndex(0).(string)] = inner
+			}
+
+			return summary, err
+		})
+
+		utils.ResponseJSON(w, mistakeSummary)
+		return
+	}
 }

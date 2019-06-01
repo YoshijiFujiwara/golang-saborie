@@ -31,6 +31,9 @@ func main() {
 	router.HandleFunc(prefix + "/users/register", userController.Register()).Methods("POST")
 	router.HandleFunc(prefix + "/users/login", userController.Login()).Methods("POST")
 	router.HandleFunc(prefix + "/users/me", userController.TokenVerifyMiddleware(userController.Me())).Methods("GET")
+	router.HandleFunc(prefix + "/users/summary/mistake", userController.TokenVerifyMiddleware(userController.GetMistakeSummary())).Methods("GET")
+	router.HandleFunc(prefix + "/users/summary/should_done", userController.TokenVerifyMiddleware(userController.GetShouldDoneSummary())).Methods("GET")
+
 
 	// sabota
 	router.HandleFunc(prefix + "/sabotas", sabotaController.Index()).Methods("GET")
