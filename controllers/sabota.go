@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"portfolio/saborie/models"
@@ -64,7 +63,135 @@ func (c SabotaController) Index() http.HandlerFunc {
 				return nil, err
 			}
 
-			fmt.Println("sabota index invoked 2")
+			for result.Next() {
+				var sabota models.Sabota
+				var user models.User
+
+				var metooUserIds []int
+				var loveUserIds []int
+				var commentUserIds []int
+
+				sabota.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
+				sabota.ShouldDone = result.Record().GetByIndex(1).(string)
+				sabota.Mistake = result.Record().GetByIndex(2).(string)
+				sabota.Time = int(result.Record().GetByIndex(3).(int64))
+				sabota.Body = result.Record().GetByIndex(4).(string)
+				sabota.CreatedAt = result.Record().GetByIndex(5).(string)
+				sabota.UpdatedAt = result.Record().GetByIndex(6).(string)
+				user.ID = int(result.Record().GetByIndex(7).(int64))
+				user.Username = result.Record().GetByIndex(8).(string)
+
+				sabota.PostUser = user
+
+				// metooの数をcount, userIdのリストを作成
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[e:METOO]-(u:User) "+
+						"WHERE ID(n) = $sabotaId "+
+						"RETURN ID(u) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				for countResult.Next() {
+					metooUserIds = append(metooUserIds, int(countResult.Record().GetByIndex(0).(int64)))
+				}
+
+				// loveの数, userIdのリストを作成
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[e:LOVE]-(u:User) "+
+						"WHERE ID(n) = $sabotaId "+
+						"RETURN ID(u) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				for countResult.Next() {
+					loveUserIds = append(loveUserIds, int(countResult.Record().GetByIndex(0).(int64)))
+				}
+
+				// commentの数をカウント, userIdのリストを作成
+				countResult, err = transaction.Run(
+					"MATCH (n:Sabota)<-[:COMMENT]-(com:Comment)<-[:POST]-(u:User) "+
+						"WHERE ID(n) = $sabotaId "+
+						"RETURN ID(u) ",
+					map[string]interface{}{"sabotaId": sabota.ID})
+				if err != nil {
+					return nil, err
+				}
+				for countResult.Next() {
+					commentUserIds = append(commentUserIds, int(countResult.Record().GetByIndex(0).(int64)))
+				}
+
+				sabota.LoveUserIds = loveUserIds
+				sabota.MetooUserIds = metooUserIds
+				sabota.CommentUserIds = commentUserIds
+
+				sabotaList = append(sabotaList, sabota)
+			}
+
+			return sabotaList, result.Err()
+		})
+
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		// sabotaリストをjsonで返す
+		utils.ResponseJSON(w, sabotaList)
+	}
+}
+
+func (c SabotaController) MySabotas() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var validationError models.Error
+		userId := r.Context().Value("userId") // ログインユーザーID
+
+		// 時系列順でsabotaを取得する
+		var (
+			err         error
+			driver      neo4j.Driver
+			session     neo4j.Session
+			result      neo4j.Result
+			countResult neo4j.Result
+		)
+		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
+
+		if err != nil {
+			return
+		}
+		defer driver.Close()
+
+		session, err = driver.Session(neo4j.AccessModeWrite)
+		if err != nil {
+			validationError.Message = err.Error()
+			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
+			return
+		}
+		defer session.Close()
+
+		sabotaList, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var sabotaList []models.Sabota
+
+			result, err = transaction.Run(
+				"MATCH (n:Sabota)<-[e:POST]-(u:User) " +
+					"WHERE ID(u) = $userId "+
+					" RETURN ID(n), "+
+					"n.shouldDone, "+
+					"n.mistake, "+
+					"n.time, "+
+					"n.body, "+
+					"n.created_at, "+
+					"n.updated_at, "+
+					"ID(u), "+
+					"u.username "+
+					"ORDER BY ID(n) DESC;",
+				map[string]interface{}{"userId": userId})
+
+			if err != nil {
+				return nil, err
+			}
+
 
 			for result.Next() {
 				var sabota models.Sabota
@@ -182,18 +309,6 @@ func (c SabotaController) SearchSabotas() http.HandlerFunc {
 			timeQuery += " (s.time = " + strconv.Itoa(jsonSabotaSearch.Time) + ")"
 		}
 		whereQuery += keyWordQuery + shouldDoneQuery + mistakeQuery + timeQuery
-
-		fmt.Println("MATCH (s:Sabota)<-[e:POST]-(u:User) " + whereQuery +
-			" RETURN ID(s), " +
-			"s.shouldDone, " +
-			"s.mistake, " +
-			"s.time, " +
-			"s.body, " +
-			"s.created_at, " +
-			"s.updated_at, " +
-			"ID(u), " +
-			"u.username " +
-			"ORDER BY ID(s) DESC;")
 
 		// 時系列順でsabotaを取得する
 		var (
