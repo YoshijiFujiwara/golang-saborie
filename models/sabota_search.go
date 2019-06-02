@@ -5,4 +5,5 @@ type SabotaSearch struct {
 	Mistake    string `json:"mistake"`
 	Time       int    `json:"time"`
 	KeyWord    string `json:"keyWord"`
+	Body       string `json:"body"`
 }

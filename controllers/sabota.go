@@ -281,6 +281,7 @@ func (c SabotaController) SearchSabotas() http.HandlerFunc {
 		var shouldDoneQuery string = ""
 		var mistakeQuery string = ""
 		var timeQuery string = ""
+		var bodyQuery string = ""
 
 		json.NewDecoder(r.Body).Decode(&jsonSabotaSearch)
 
@@ -308,7 +309,13 @@ func (c SabotaController) SearchSabotas() http.HandlerFunc {
 			}
 			timeQuery += " (s.time = " + strconv.Itoa(jsonSabotaSearch.Time) + ")"
 		}
-		whereQuery += keyWordQuery + shouldDoneQuery + mistakeQuery + timeQuery
+		if jsonSabotaSearch.Body != "" {
+			if keyWordQuery != "" || shouldDoneQuery != "" || mistakeQuery != "" || timeQuery != "" {
+				bodyQuery += " AND "
+			}
+			bodyQuery += " (s.body =~ '.*" + jsonSabotaSearch.Body + ".*')"
+		}
+		whereQuery += keyWordQuery + shouldDoneQuery + mistakeQuery + timeQuery + bodyQuery
 
 		// 時系列順でsabotaを取得する
 		var (
