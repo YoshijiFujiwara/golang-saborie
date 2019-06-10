@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"golang.org/x/crypto/bcrypt"
@@ -190,7 +189,6 @@ func (c UserController) TokenVerifyMiddleware(next http.HandlerFunc) http.Handle
 					utils.RespondWithError(w, http.StatusUnauthorized, errorObject)
 					return
 				}
-				spew.Dump(dbUser)
 				ctx := context.WithValue(r.Context(), "userId", dbUser.ID) // ログインユーザーIDを渡す
 				r = r.WithContext(ctx)
 				next.ServeHTTP(w, r) //ハンドラーへ返却
