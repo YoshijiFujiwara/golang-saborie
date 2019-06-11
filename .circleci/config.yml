@@ -22,5 +22,16 @@ jobs:
     - checkout
 
     # specify any bash command here prefixed with `run: `
+    - run: echo ${ENV} > ~/.env
     - run: go get -v -t -d ./...
-    - run: go test -v ./...
+    - run: go run main.go
+
+  deploy_notify:
+    executor: default
+      steps:
+      - run:
+        name: デプロイ結果を通知
+        command: |
+          curl -X POST -H 'Content-type: application/json' --data \
+          "{'text': 'DEPLOY DONE! ${CIRCLE_PROJECT_REPONAME}'" \
+          ${SLACK_WEBHOOK_URL}
