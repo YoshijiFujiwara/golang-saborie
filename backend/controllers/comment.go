@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"portfolio/saborie/models"
-	"portfolio/saborie/utils"
+	"portfolio/saborie/backend/models"
+	"portfolio/saborie/backend/utils"
 	"strconv"
 	"time"
 
@@ -14,7 +14,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-type CommentController struct {}
+type CommentController struct{}
 
 func (c CommentController) Index() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +54,6 @@ func (c CommentController) Index() http.HandlerFunc {
 			if err != nil {
 				return nil, err
 			}
-
 
 			for result.Next() {
 				var comment models.Comment
@@ -123,13 +122,13 @@ func (c CommentController) Store() http.HandlerFunc {
 			var postUser models.User
 
 			result, err = transaction.Run(
-				"CREATE (c:Comment) SET " +
+				"CREATE (c:Comment) SET "+
 					"c.body = $body, "+
-					"c.created_at = $created_at, " +
-					"c.updated_at = $updated_at " +
+					"c.created_at = $created_at, "+
+					"c.updated_at = $updated_at "+
 					"RETURN ID(c), c.body, c.created_at, c.updated_at;",
 				map[string]interface{}{
-					"body": jsonComment.Body,
+					"body":       jsonComment.Body,
 					"created_at": time.Now().Format("2006-01-02 15:04:05"),
 					"updated_at": time.Now().Format("2006-01-02 15:04:05"),
 				})
@@ -147,8 +146,8 @@ func (c CommentController) Store() http.HandlerFunc {
 
 			// sabotaとの関連付け
 			result, err = transaction.Run(
-				"MATCH (sa:Sabota), (com:Comment) " +
-					"WHERE ID(sa) = $sabotaId AND ID(com) = $commentId " +
+				"MATCH (sa:Sabota), (com:Comment) "+
+					"WHERE ID(sa) = $sabotaId AND ID(com) = $commentId "+
 					"CREATE (sa)<-[e:COMMENT]-(com) RETURN e;",
 				map[string]interface{}{"sabotaId": sabotaId, "commentId": newComment.ID})
 			if err != nil {
@@ -157,11 +156,11 @@ func (c CommentController) Store() http.HandlerFunc {
 
 			// 投稿者との関連づけ
 			result, err = transaction.Run(
-				"MATCH (u:User), (com:Comment) " +
-					"WHERE ID(u) = $userId AND ID(com) = $commentId " +
+				"MATCH (u:User), (com:Comment) "+
+					"WHERE ID(u) = $userId AND ID(com) = $commentId "+
 					"CREATE (u)-[e:POST]->(com) RETURN ID(u), u.username, u.email, u.created_at, u.updated_at;",
 				map[string]interface{}{"userId": userId, "commentId": newComment.ID})
-			if err != nil{
+			if err != nil {
 				return nil, err
 			}
 			if result.Next() {
@@ -219,15 +218,15 @@ func (c CommentController) Show() http.HandlerFunc {
 			var comment models.Comment
 
 			result, err = transaction.Run(
-				"MATCH (s:Sabota)<-[:COMMENT]-(com:Comment) " +
-					"WHERE ID(s) = $sabotaId AND ID(com) = $commentId " +
-					"RETURN ID(com), " +
-					"com.body, " +
-					"com.created_at, " +
-					"com.updated_at " +
+				"MATCH (s:Sabota)<-[:COMMENT]-(com:Comment) "+
+					"WHERE ID(s) = $sabotaId AND ID(com) = $commentId "+
+					"RETURN ID(com), "+
+					"com.body, "+
+					"com.created_at, "+
+					"com.updated_at "+
 					"ORDER BY ID(s) DESC;",
 				map[string]interface{}{
-					"sabotaId": sabotaId,
+					"sabotaId":  sabotaId,
 					"commentId": commentId,
 				})
 
@@ -259,7 +258,7 @@ func (c CommentController) Update() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("update invoked")
 		var validationError models.Error
-		var jsonComment models.Sabota // post内容のcomment
+		var jsonComment models.Sabota         // post内容のcomment
 		userId := r.Context().Value("userId") // ログインユーザーID
 
 		// クエリパラメータから、sabotaIDを取得する
@@ -298,7 +297,6 @@ func (c CommentController) Update() http.HandlerFunc {
 		}
 		defer session.Close()
 
-
 		// そのcommentの投稿者とtoken経由のuserIdが一致するか確認
 		postUserId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 			var postUserId int
@@ -316,7 +314,6 @@ func (c CommentController) Update() http.HandlerFunc {
 				postUserId = int(result.Record().GetByIndex(0).(int64))
 			}
 			fmt.Println(postUserId)
-
 
 			return postUserId, result.Err()
 		})
@@ -336,14 +333,14 @@ func (c CommentController) Update() http.HandlerFunc {
 			var updatedCommentId int64
 
 			result, err = transaction.Run(
-				"MATCH (c:Comment)" +
-					"WHERE ID(c) = $commentId SET " +
+				"MATCH (c:Comment)"+
+					"WHERE ID(c) = $commentId SET "+
 					"c.body = $body, "+
-					"c.updated_at = $updated_at " +
+					"c.updated_at = $updated_at "+
 					"RETURN ID(c);",
 				map[string]interface{}{
-					"commentId": commentId,
-					"body": jsonComment.Body,
+					"commentId":  commentId,
+					"body":       jsonComment.Body,
 					"updated_at": time.Now().Format("2006-01-02 15:04:05"),
 				})
 
@@ -400,7 +397,6 @@ func (c CommentController) Destroy() http.HandlerFunc {
 		}
 		defer session.Close()
 
-
 		// そのcommentの投稿者とtoken経由のuserIdが一致するか確認
 		postUserId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 			var postUserId int
@@ -418,7 +414,6 @@ func (c CommentController) Destroy() http.HandlerFunc {
 				postUserId = int(result.Record().GetByIndex(0).(int64))
 			}
 			fmt.Println(postUserId)
-
 
 			return postUserId, result.Err()
 		})

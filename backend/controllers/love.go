@@ -1,19 +1,20 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"os"
-	"portfolio/saborie/models"
-	"portfolio/saborie/utils"
+	"portfolio/saborie/backend/models"
+	"portfolio/saborie/backend/utils"
 	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-type MetooController struct {}
+type LoveController struct{}
 
-func (c MetooController) Index() http.HandlerFunc {
+func (c LoveController) Index() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var validationError models.Error
 
@@ -41,27 +42,26 @@ func (c MetooController) Index() http.HandlerFunc {
 		}
 		defer session.Close()
 
-		metooUserList, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-			var metooUserList []models.User
+		loveUserList, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+			var loveUserList []models.User
 
 			result, err = transaction.Run(
-				"MATCH (s:Sabota)<-[e:METOO]-(u:User) WHERE ID(s) = $sabotaId RETURN ID(u), u.username ORDER BY ID(e) DESC;",
+				"MATCH (s:Sabota)<-[e:LOVE]-(u:User) WHERE ID(s) = $sabotaId RETURN ID(u), u.username ORDER BY ID(e) DESC;",
 				map[string]interface{}{"sabotaId": sabotaId})
 
 			if err != nil {
 				return nil, err
 			}
 
-
 			for result.Next() {
 				var user models.User
 				user.ID = int(result.Record().GetByIndex(0).(int64)) // int64 -> intへの型キャスト
 				user.Username = result.Record().GetByIndex(1).(string)
 
-				metooUserList = append(metooUserList, user)
+				loveUserList = append(loveUserList, user)
 			}
 
-			return metooUserList, result.Err()
+			return loveUserList, result.Err()
 		})
 
 		if err != nil {
@@ -69,12 +69,12 @@ func (c MetooController) Index() http.HandlerFunc {
 			utils.RespondWithError(w, http.StatusInternalServerError, validationError)
 			return
 		}
-		// metooつけた人のuserのリストを返す
-		utils.ResponseJSON(w, metooUserList)
+		// loveつけた人のuserのリストを返す
+		utils.ResponseJSON(w, loveUserList)
 	}
 }
 
-func (c MetooController) SwitchMetoo() http.HandlerFunc {
+func (c LoveController) SwitchLove() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var validationError models.Error
 		userId := r.Context().Value("userId") // ログインユーザーID
@@ -106,14 +106,14 @@ func (c MetooController) SwitchMetoo() http.HandlerFunc {
 		}
 		defer session.Close()
 
-		// 自分の投稿にはつけれない　
+		// 自分の投稿にはつけれない
 		count, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 			var count int
 
 			result, err = transaction.Run(
 				"MATCH (u:User)-[e:POST]->(s:Sabota) WHERE ID(s) = $sabotaId AND ID(u) = $userId RETURN count(e);",
 				map[string]interface{}{
-					"userId": userId,
+					"userId":   userId,
 					"sabotaId": sabotaId,
 				})
 
@@ -123,6 +123,10 @@ func (c MetooController) SwitchMetoo() http.HandlerFunc {
 			if result.Next() {
 				count = int(result.Record().GetByIndex(0).(int64))
 			}
+
+			fmt.Println(count)
+			fmt.Println(sabotaId)
+			fmt.Println(userId)
 
 			return count, result.Err()
 		})
@@ -140,13 +144,13 @@ func (c MetooController) SwitchMetoo() http.HandlerFunc {
 
 		_, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 			var count int
-			var metooEdgeId int
+			var loveEdgeId int
 
 			result, err = transaction.Run(
-				"MATCH (u:User)-[e:METOO]->(s:Sabota) WHERE ID(s) = $sabotaId AND ID(u) = $userId RETURN count(e), ID(e);",
+				"MATCH (u:User)-[e:LOVE]->(s:Sabota) WHERE ID(s) = $sabotaId AND ID(u) = $userId RETURN count(e), ID(e);",
 				map[string]interface{}{
 					"sabotaId": sabotaId,
-					"userId": userId,
+					"userId":   userId,
 				})
 
 			if err != nil {
@@ -154,29 +158,29 @@ func (c MetooController) SwitchMetoo() http.HandlerFunc {
 			}
 			if result.Next() {
 				count = int(result.Record().GetByIndex(0).(int64))
-				metooEdgeId = int(result.Record().GetByIndex(1).(int64))
+				loveEdgeId = int(result.Record().GetByIndex(1).(int64))
 			}
 
-			// すでにMetooをつけていたら、削除
+			// すでにLOVEをつけていたら、削除
 			if count != 0 {
 				result, err = transaction.Run(
-					"MATCH (u:User)-[e:METOO]->(s:Sabota) WHERE ID(e) = $metooEdgeId DELETE e",
+					"MATCH (u:User)-[e:LOVE]->(s:Sabota) WHERE ID(e) = $loveEdgeId DELETE e",
 					map[string]interface{}{
-						"metooEdgeId": metooEdgeId,
+						"loveEdgeId": loveEdgeId,
 					})
 
 				if err != nil {
 					return nil, err
 				}
-			} else { // Metooがまだなら、つける
+			} else { // LOVEがまだなら、つける
 
 				result, err = transaction.Run(
-					"MATCH (u:User), (s:Sabota) " +
-							"WHERE ID(u) = $userId AND ID(s) = $sabotaId " +
-							"CREATE (u)-[e:METOO]->(s) " +
-							"RETURN e;",
+					"MATCH (u:User), (s:Sabota) "+
+						"WHERE ID(u) = $userId AND ID(s) = $sabotaId "+
+						"CREATE (u)-[e:LOVE]->(s) "+
+						"RETURN e;",
 					map[string]interface{}{
-						"userId": userId,
+						"userId":   userId,
 						"sabotaId": sabotaId,
 					})
 

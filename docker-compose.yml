@@ -1,0 +1,15 @@
+version: '3'
+services:
+  app:
+    # app_goの中にあるDockerfileの読み込み
+    build: ./backend
+    ports:
+      - 8000:8000
+    # コンテナ名
+    container_name: "backend_go"
+    tty: true
+    #ホストのディレクトリをコンテナにマウント
+    volumes:
+    - ./backend:/go/src/portfolio/saborie/backend
+
+  

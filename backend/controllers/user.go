@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"portfolio/saborie/models"
-	"portfolio/saborie/utils"
+	"portfolio/saborie/backend/models"
+	"portfolio/saborie/backend/utils"
 	"strconv"
 	"strings"
 
@@ -224,9 +224,9 @@ func (c UserController) GetMistakeSummary() http.HandlerFunc {
 		// ユーザーのミステイクのサマリーを取得する
 		var (
 			//err         error
-			driver      neo4j.Driver
-			session     neo4j.Session
-			result      neo4j.Result
+			driver  neo4j.Driver
+			session neo4j.Session
+			result  neo4j.Result
 		)
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
@@ -249,8 +249,8 @@ func (c UserController) GetMistakeSummary() http.HandlerFunc {
 			summary := make(map[string](map[string]int))
 
 			result, err = transaction.Run(
-				"MATCH (m:Mistake)<-[:DONE]-(s:Sabota)<-[e:POST]-(u:User) WHERE ID(u) = $userId " +
-				"RETURN m.name, sum(s.time) as sumTime, count(s.time)",
+				"MATCH (m:Mistake)<-[:DONE]-(s:Sabota)<-[e:POST]-(u:User) WHERE ID(u) = $userId "+
+					"RETURN m.name, sum(s.time) as sumTime, count(s.time)",
 				map[string]interface{}{"userId": userId})
 
 			if err != nil {
@@ -292,9 +292,9 @@ func (c UserController) GetShouldDoneSummary() http.HandlerFunc {
 		// ユーザーのミステイクのサマリーを取得する
 		var (
 			//err         error
-			driver      neo4j.Driver
-			session     neo4j.Session
-			result      neo4j.Result
+			driver  neo4j.Driver
+			session neo4j.Session
+			result  neo4j.Result
 		)
 		driver, err = neo4j.NewDriver(os.Getenv("db_url"), neo4j.BasicAuth(os.Getenv("db_user"), os.Getenv("db_pass"), ""))
 
@@ -317,7 +317,7 @@ func (c UserController) GetShouldDoneSummary() http.HandlerFunc {
 			summary := make(map[string](map[string]int))
 
 			result, err = transaction.Run(
-				"MATCH (sd:ShouldDone)<-[:DONT]-(s:Sabota)<-[e:POST]-(u:User) WHERE ID(u) = $userId " +
+				"MATCH (sd:ShouldDone)<-[:DONT]-(s:Sabota)<-[e:POST]-(u:User) WHERE ID(u) = $userId "+
 					"RETURN sd.name, sum(s.time), count(s.time)",
 				map[string]interface{}{"userId": userId})
 

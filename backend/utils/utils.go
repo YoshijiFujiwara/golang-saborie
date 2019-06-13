@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"portfolio/saborie/models"
+	"portfolio/saborie/backend/models"
 	"strconv"
 	"time"
 
@@ -47,17 +47,17 @@ func CreateUser(user models.User) (string, error) {
 
 	newUser, err = session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 		result, err = transaction.Run(
-			"CREATE (u:User) SET " +
-				"u.email = $email, " +
-				"u.username = $username, " +
-				"u.password = $password, " +
-				"u.created_at = $created_at, " +
-				"u.updated_at = $updated_at " +
+			"CREATE (u:User) SET "+
+				"u.email = $email, "+
+				"u.username = $username, "+
+				"u.password = $password, "+
+				"u.created_at = $created_at, "+
+				"u.updated_at = $updated_at "+
 				"RETURN u.email + ', from node ' + id(u)",
 			map[string]interface{}{
-				"email": user.Email,
-				"username": user.Username,
-				"password": user.Password,
+				"email":      user.Email,
+				"username":   user.Username,
+				"password":   user.Password,
 				"created_at": time.Now().Format("2006-01-02 15:04:05"),
 				"updated_at": time.Now().Format("2006-01-02 15:04:05"),
 			})
@@ -81,11 +81,11 @@ func CreateUser(user models.User) (string, error) {
 func SearchUser(clue string, variableType string) (*models.User, error) {
 
 	var (
-		driver   neo4j.Driver
-		session  neo4j.Session
-		result   neo4j.Result
-		err      error
-		user models.User
+		driver    neo4j.Driver
+		session   neo4j.Session
+		result    neo4j.Result
+		err       error
+		user      models.User
 		countUser int
 	)
 
@@ -147,11 +147,11 @@ func SearchUser(clue string, variableType string) (*models.User, error) {
 func SearchUserByEmail(clue string, variableType string) (*models.User, error) {
 
 	var (
-		driver   neo4j.Driver
-		session  neo4j.Session
-		result   neo4j.Result
-		err      error
-		user models.User
+		driver    neo4j.Driver
+		session   neo4j.Session
+		result    neo4j.Result
+		err       error
+		user      models.User
 		countUser int
 	)
 
@@ -215,8 +215,8 @@ func GenerateToken(user models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
-		"iss": os.Getenv("token_iss"),
-		"time": time.Now().UTC().Add(ttl).Unix(),
+		"iss":   os.Getenv("token_iss"),
+		"time":  time.Now().UTC().Add(ttl).Unix(),
 	})
 	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
