@@ -30,4 +30,4 @@ RUN export C_INCLUDE_PATH=/seabolt/build/dist/include
 RUN apt install -y pkg-config
 RUN apt install -y build-essential cmake
 
-CMD [ "go", "run", "main.go" ]
+#CMD [ "go", "run", "main.go" ]
