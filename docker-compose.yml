@@ -1,0 +1,36 @@
+version: '3'
+services:
+  app:
+    # app_goの中にあるDockerfileの読み込み
+    build: ./backend
+    ports:
+      - 8000:8000
+    # コンテナ名
+    container_name: "backend_go"
+    tty: true
+    #ホストのディレクトリをコンテナにマウント
+    volumes:
+    - ./backend:/go/src/portfolio/saborie/backend
+    depends_on:
+    - 'neo4j'
+    networks:
+    - neo4j_go_net
+
+  # neo4j
+  neo4j:
+    image: neo4j:latest
+    container_name: 'neo4j'
+    volumes:
+    - '$HOME/neo4j/data:/data'
+    - '$HOME/neo4j/conf/:/conf/'
+    ports:
+    - 7474:7474
+    - 7687:7687
+    restart: on-failure
+    networks:
+    - neo4j_go_net
+    command: neo4j
+
+networks:
+  neo4j_go_net:
+    driver: bridge

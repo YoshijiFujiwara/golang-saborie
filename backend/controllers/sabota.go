@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"portfolio/saborie/models"
-	"portfolio/saborie/utils"
+	"portfolio/saborie/backend/models"
+	"portfolio/saborie/backend/utils"
 	"strconv"
 	"time"
 
@@ -175,7 +175,7 @@ func (c SabotaController) MySabotas() http.HandlerFunc {
 			var sabotaList []models.Sabota
 
 			result, err = transaction.Run(
-				"MATCH (n:Sabota)<-[e:POST]-(u:User) " +
+				"MATCH (n:Sabota)<-[e:POST]-(u:User) "+
 					"WHERE ID(u) = $userId "+
 					" RETURN ID(n), "+
 					"n.shouldDone, "+
@@ -192,7 +192,6 @@ func (c SabotaController) MySabotas() http.HandlerFunc {
 			if err != nil {
 				return nil, err
 			}
-
 
 			for result.Next() {
 				var sabota models.Sabota
@@ -486,12 +485,12 @@ func (c SabotaController) LinkedSabotas() http.HandlerFunc {
 
 		sabotaList, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 			var sabotaList []models.Sabota
-			var nodeId int// 検索の起点となるノード(ShouldDone, MistakeノードのID)
+			var nodeId int // 検索の起点となるノード(ShouldDone, MistakeノードのID)
 
 			// 起点となるノードのIDを習得する
 			result, err = transaction.Run(
-				"MATCH (sa:Sabota)-[dont:" + searchEdgeName + "]->(sd:" + searchNodeName + ") " +
-					" WHERE ID(sa) = $sabotaId" +
+				"MATCH (sa:Sabota)-[dont:"+searchEdgeName+"]->(sd:"+searchNodeName+") "+
+					" WHERE ID(sa) = $sabotaId"+
 					" RETURN ID(sd)",
 				map[string]interface{}{"sabotaId": jsonLinkedSearch.SabotaId})
 
@@ -505,8 +504,8 @@ func (c SabotaController) LinkedSabotas() http.HandlerFunc {
 
 			// nodeIDをもとに関連するサボタのリストを取得する
 			result, err = transaction.Run(
-				"MATCH (n)<-[e:" + searchEdgeName+ "]-(s:Sabota)<-[:POST]-(u:User) " +
-					" WHERE ID(n) = $nodeId" +
+				"MATCH (n)<-[e:"+searchEdgeName+"]-(s:Sabota)<-[:POST]-(u:User) "+
+					" WHERE ID(n) = $nodeId"+
 					" RETURN ID(s), "+
 					"s.shouldDone, "+
 					"s.mistake, "+
@@ -1047,7 +1046,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 
 			fmt.Println("invoked")
 
-
 			if err != nil {
 				return nil, err
 			}
@@ -1066,7 +1064,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 		}
 
 		fmt.Println("invoked")
-
 
 		// 該当するsabotaをupdateする
 		updatedSabotaId, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
@@ -1091,7 +1088,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 				})
 
 			fmt.Println("invoked")
-
 
 			if err != nil {
 				return nil, err
@@ -1122,7 +1118,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 			}
 
 			fmt.Println("invoked")
-
 
 			if result.Next() {
 				count = result.Record().GetByIndex(0).(int64)
@@ -1172,7 +1167,6 @@ func (c SabotaController) Update() http.HandlerFunc {
 			}
 
 			fmt.Println("invoked")
-
 
 			if result.Next() {
 				count = result.Record().GetByIndex(0).(int64)
