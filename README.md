@@ -15,4 +15,4 @@ GoのアプリケーションサーバをAWSのEC2で、
 Neo4jのDBサーバーもEC2で運用しています。
 
 ## 公開URL
-で、公開しています。
+https://play.google.com/store/apps/details?id=com.yoshijiFujiwara.saborie  で、公開しています。
